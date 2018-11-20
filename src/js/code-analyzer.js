@@ -2,7 +2,7 @@
 import * as esprima from 'esprima';
 let tableInfo = [];
 const parseCode = (codeToParse) => {
-    // tableInfo = [];
+    tableInfo = [];
     return esprima.parseScript(codeToParse, {loc: true});
 
 };
@@ -21,14 +21,13 @@ const statmentType = {
     'IfStatement': parseIf,
     'ForStatement': parseFor,
     'AssignmentExpression': parseAssignment,
-    'UpdateExpression':parseUpdate};
-
-// TryStatement 'BlockStatement':BreakStatement | ContinueStatement |
+    'UpdateExpression':parseUpdate,
+    'MemberExpression':parseMember};
 
 function makeArray (ParsedCode) {
     if (ParsedCode.body.length > 0) {
         functionHeader(ParsedCode);
-        functionCode((ParsedCode.body)[0].body.body);
+        functionBlock((ParsedCode.body)[0].body.body);
 
     }
 }
@@ -47,16 +46,13 @@ function functionHeader(data)
     }
 }
 
-function functionCode(insideBody) {
+function functionBlock(insideBody) {
     for(let j=0;j<insideBody.length;j++)
     {
         //statmentType[.type](insideBody[j]);
         parseItem(insideBody[j]);
     }
 }
-// function parseFunction(insideBody) {
-//
-// }
 
 function parseVar(insideBody) {
     for(var j=0 ;j<(insideBody.declarations).length;j++)
@@ -89,13 +85,16 @@ function getBinaryExpVal(binaryValue)
     return left+' '+operator+' '+right;
 }
 function simpleBinary(oneSide) {
-    if(oneSide.type=='BinaryExpression')
-        oneSide='('+simpleBinary(oneSide)+')';
-    else if(oneSide.type=='Literal')
-        oneSide=oneSide.value;
-    else if(oneSide.type=='Identifier')
-        oneSide=oneSide.name;
-    return oneSide;
+    let temp;
+    if (oneSide.type=='BinaryExpression')
+        temp= '('+getBinaryExpVal(oneSide)+')';
+    if (oneSide.type=='Literal')
+        temp= oneSide.value;
+    if (oneSide.type=='Identifier')
+        temp= oneSide.name;
+    if(oneSide.type=='UnaryExpression')
+        temp= oneSide.operator+' '+oneSide.argument.value;
+    return temp;
     //maybe add member expression
 }
 function parseItem(item) {
@@ -116,37 +115,39 @@ function parseWhile(insideBody) {
     tableInfo.push({Line:insideBody.loc.start.line, Type:'while statement',
         Name:'',Condition:cond, Value:''});
     //handle the block of while loop
-    functionCode(insideBody.body.body);
+    functionBlock(insideBody.body.body);
 
 }
 function parseIf(insideBody,type) {
-    let cond=getVarValue(insideBody.test);
+    let cond=getBinaryExpVal(insideBody.test);
     if(type==null)
         type='if statement';
     tableInfo.push({Line:insideBody.loc.start.line, Type:type,
         Name:'',Condition:cond, Value:''});
-    //handle the block of while loop
+    //handle the block of if
     let consequent=insideBody.consequent;
     if(consequent.type=='BlockStatement')
-        functionCode(consequent.body);
+        functionBlock(consequent.body);
     else
         parseItem(consequent);
-    if(insideBody.alternate!=null)
+    if (insideBody.alternate!= null)
         parseElse(insideBody.alternate);
 
 }
 function parseElse(alternate) {
     if(alternate.type=='IfStatement')
         parseIf(alternate,'else if statement');
-    else
-    {
-        tableInfo.push({Line:alternate.loc.start.line, Type:'else statement',
-            Name:'',Condition:' ', Value:''});
+    else {
+        tableInfo.push({
+            Line: alternate.loc.start.line, Type: 'else statement',
+            Name: '', Condition: ' ', Value: ''
+        });
+
+        if (alternate.type == 'BlockStatement')
+            functionBlock(alternate.body);
+        else
+            parseItem(alternate);
     }
-    if(alternate.type=='BlockStatement')
-        functionCode(alternate.body);
-    else
-        parseItem(alternate);
 }
 function parseFor(insideBody) {
     let value=getVarValue(insideBody.init.declarations[0].init);
@@ -156,7 +157,7 @@ function parseFor(insideBody) {
         +insideBody.update.operator;
     tableInfo.push({Line:insideBody.loc.start.line, Type:'for statement',
         Name:'',Condition:cond, Value:''});
-    functionCode(insideBody.body.body);
+    functionBlock(insideBody.body.body);
 }
 function parseAssignment(insideBody) {
     let name=insideBody.left.name;
@@ -171,10 +172,7 @@ function parseUpdate(insideBody) {
     tableInfo.push({Line:insideBody.loc.start.line, Type:'update expression',
         Name:name,Condition:' ', Value:name+''+operator});
 }
-// function makeArrayNofunction(ParsedCodeBody) {
-//     for (var i = 0; i < ParsedCodeBody.length; i++) {
-//         var type = ParsedCodeBody[i].type;
-//         // line.push({Line:ParsedCode.loc.start.line, 'Type':type, 'Name':,Condition Value});
-//         return lines;
-//     }
-// }
+function parseMember(value) {
+    return value.object.name+'['+getVarValue(value.property)+']';
+}
+
