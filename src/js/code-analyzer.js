@@ -93,12 +93,19 @@ function simpleBinary(oneSide) {
 function parseExp(insideBody){
     
 }
+//handling return statement
 function parseReturn(insideBody) {
-    let returnValue=getVarValue(insideBody.argument)
+    let returnValue=getBinaryExpVal(insideBody.argument);
     tableInfo.push({Line:insideBody.loc.start.line, Type:'return statement',
         Name:'',Condition:'', Value:returnValue});
 }
+//handling while statement
 function parseWhile(insideBody) {
+    let cond=getVarValue(insideBody.test);
+    tableInfo.push({Line:insideBody.loc.start.line, Type:'while statement',
+        Name:'',Condition:cond, Value:''});
+    //handle the block of while loop
+    functionCode(insideBody.body.body);
 
 }
 function parseIf(insideBody) {
