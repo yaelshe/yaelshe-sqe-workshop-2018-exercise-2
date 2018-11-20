@@ -1,22 +1,28 @@
 /* eslint-disable no-unused-vars,indent */
 import * as esprima from 'esprima';
-
+let tableInfo = [];
 const parseCode = (codeToParse) => {
+    // tableInfo = [];
     return esprima.parseScript(codeToParse, {loc: true});
+
 };
 
 export {parseCode};
 export {makeArray};
-let tableInfo = [];
+export {tableInfo};
+
 
 const statmentType = {
-    'FunctionDeclaration': parseFunction, 
+    'FunctionDeclaration': functionHeader,
     'VariableDeclaration': parseVar,
-    'ExpressionStatement': parseExp,
+    'ExpressionStatement': parseExpression,
     'ReturnStatement': parseReturn,
     'WhileStatement': parseWhile,
     'IfStatement': parseIf,
-    'ForStatement': parseFor,};
+    'ForStatement': parseFor,
+    'AssignmentExpression': parseAssignment,
+    'UpdateExpression':parseUpdate};
+
 // TryStatement 'BlockStatement':BreakStatement | ContinueStatement |
 
 function makeArray (ParsedCode) {
@@ -44,12 +50,14 @@ function functionHeader(data)
 function functionCode(insideBody) {
     for(let j=0;j<insideBody.length;j++)
     {
-        statmentType[insideBody[j].type](insideBody[j]);
+        //statmentType[.type](insideBody[j]);
+        parseItem(insideBody[j]);
     }
 }
-function parseFunction(insideBody) {
-    
-}
+// function parseFunction(insideBody) {
+//
+// }
+
 function parseVar(insideBody) {
     for(var j=0 ;j<(insideBody.declarations).length;j++)
     {
@@ -90,12 +98,15 @@ function simpleBinary(oneSide) {
     return oneSide;
     //maybe add member expression
 }
-function parseExp(insideBody){
-    
+function parseItem(item) {
+    statmentType[item.type](item);
+}
+function parseExpression(insideBody){
+    statmentType[insideBody.expression.type](insideBody.expression);
 }
 //handling return statement
 function parseReturn(insideBody) {
-    let returnValue=getBinaryExpVal(insideBody.argument);
+    let returnValue=getVarValue(insideBody.argument);
     tableInfo.push({Line:insideBody.loc.start.line, Type:'return statement',
         Name:'',Condition:'', Value:returnValue});
 }
@@ -108,24 +119,61 @@ function parseWhile(insideBody) {
     functionCode(insideBody.body.body);
 
 }
-function parseIf(insideBody) {
-    
+function parseIf(insideBody,type) {
+    let cond=getVarValue(insideBody.test);
+    if(type==null)
+        type='if statement';
+    tableInfo.push({Line:insideBody.loc.start.line, Type:type,
+        Name:'',Condition:cond, Value:''});
+    //handle the block of while loop
+    let consequent=insideBody.consequent;
+    if(consequent.type=='BlockStatement')
+        functionCode(consequent.body);
+    else
+        parseItem(consequent);
+    if(insideBody.alternate!=null)
+        parseElse(insideBody.alternate);
+
+}
+function parseElse(alternate) {
+    if(alternate.type=='IfStatement')
+        parseIf(alternate,'else if statement');
+    else
+    {
+        tableInfo.push({Line:alternate.loc.start.line, Type:'else statement',
+            Name:'',Condition:' ', Value:''});
+    }
+    if(alternate.type=='BlockStatement')
+        functionCode(alternate.body);
+    else
+        parseItem(alternate);
 }
 function parseFor(insideBody) {
-    
+    let value=getVarValue(insideBody.init.declarations[0].init);
+    let cond=insideBody.init.declarations[0].id.name+'='+value;
+    cond=cond+';'+getBinaryExpVal(insideBody.test)+';'
+        +insideBody.update.argument.name
+        +insideBody.update.operator;
+    tableInfo.push({Line:insideBody.loc.start.line, Type:'for statement',
+        Name:'',Condition:cond, Value:''});
+    functionCode(insideBody.body.body);
 }
-
+function parseAssignment(insideBody) {
+    let name=insideBody.left.name;
+    let right=insideBody.right;
+    right=getVarValue(right);
+    tableInfo.push({Line:insideBody.loc.start.line, Type:'assignment expression',
+        Name:name,Condition:' ', Value:right});
+}
+function parseUpdate(insideBody) {
+    let name=insideBody.argument.name;
+    let operator=insideBody.operator;
+    tableInfo.push({Line:insideBody.loc.start.line, Type:'update expression',
+        Name:name,Condition:' ', Value:name+''+operator});
+}
 // function makeArrayNofunction(ParsedCodeBody) {
 //     for (var i = 0; i < ParsedCodeBody.length; i++) {
 //         var type = ParsedCodeBody[i].type;
-//         for(var j=0 ;j< (ParsedCodeBody[i].declarations).length;j++)
-//         {
-//
-//         }
-//
-//         //     var name = ParsedCode.body[i].id;
-//         //     var name = ParsedCode.body[i].init;
-//         // }
 //         // line.push({Line:ParsedCode.loc.start.line, 'Type':type, 'Name':,Condition Value});
 //         return lines;
 //     }
