@@ -2,8 +2,8 @@
 import * as esprima from 'esprima';
 let tableInfo = [];
 const parseCode = (codeToParse) => {
-    tableInfo = [];
-    return esprima.parseScript(codeToParse, {loc: true});
+    tableInfo.clear;
+    return esprima.parseScript(codeToParse,{loc:true});
 
 };
 
@@ -24,12 +24,24 @@ const statmentType = {
     'UpdateExpression':parseUpdate,
     'MemberExpression':parseMember};
 
-function makeArray (ParsedCode) {
-    if (ParsedCode.body.length > 0) {
-        functionHeader(ParsedCode);
-        functionBlock((ParsedCode.body)[0].body.body);
 
+function makeArray (ParsedCode) {
+    tableInfo.clear;
+    tableInfo=[];
+    if (ParsedCode!=null&&ParsedCode.body.length > 0) {
+        if(isFunc(ParsedCode)) {
+            functionHeader(ParsedCode);
+            functionBlock((ParsedCode.body)[0].body.body);
+        }
+        else
+            functionBlock((ParsedCode.body));
     }
+    return tableInfo;
+}
+function isFunc(ParsedCode) {
+    if((ParsedCode.body)[0].type=='FunctionDeclaration')
+        return true;
+    return false;
 }
 //handles function's header and parameters
 function functionHeader(data)
@@ -75,7 +87,9 @@ function getVarValue(value) {
             return value.name;
         if(value.type=='UnaryExpression')
             return value.operator+' '+value.argument.value;
-        return null;
+        else(value.type=='MemberExpression')
+            return parseMember(value);
+
 }
 function getBinaryExpVal(binaryValue)
 {
@@ -88,14 +102,22 @@ function simpleBinary(oneSide) {
     let temp;
     if (oneSide.type=='BinaryExpression')
         temp= '('+getBinaryExpVal(oneSide)+')';
-    if (oneSide.type=='Literal')
+    else if (oneSide.type=='Literal')
         temp= oneSide.value;
-    if (oneSide.type=='Identifier')
+    else if (oneSide.type=='Identifier')
         temp= oneSide.name;
-    if(oneSide.type=='UnaryExpression')
-        temp= oneSide.operator+' '+oneSide.argument.value;
+    else
+        temp=moreChecks(oneSide);
     return temp;
     //maybe add member expression
+}
+function moreChecks(oneSide) {
+    let temp;
+    if(oneSide.type=='UnaryExpression')
+        temp= oneSide.operator+' '+oneSide.argument.value;
+    if(oneSide.type=='MemberExpression')
+        temp= parseMember(oneSide);
+    return temp;
 }
 function parseItem(item) {
     statmentType[item.type](item);
@@ -114,6 +136,7 @@ function parseWhile(insideBody) {
     let cond=getVarValue(insideBody.test);
     tableInfo.push({Line:insideBody.loc.start.line, Type:'while statement',
         Name:'',Condition:cond, Value:''});
+
     //handle the block of while loop
     functionBlock(insideBody.body.body);
 
