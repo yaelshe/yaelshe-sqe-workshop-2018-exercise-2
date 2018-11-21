@@ -16,3 +16,10 @@ describe('The javascript parser', () => {
         );
     });
 });
+
+//
+// parseCode('if (a==0')
+// parseCode('while(a>=0')
+// parseCode('for(let a=1;a<8;a++')
+// parseCode('a=a+1');
+
