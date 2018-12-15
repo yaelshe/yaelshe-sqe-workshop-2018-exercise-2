@@ -1,15 +1,18 @@
 /* eslint-disable no-unused-vars,indent */
 import * as esprima from 'esprima';
 let tableInfo = [];
+let globalsVars=[];
+let functionCodeOnly;
 const parseCode = (codeToParse) => {
     tableInfo.clear;
+    functionCodeOnly=saveGlobalsVars(codeToParse);
     return esprima.parseScript(codeToParse,{loc:true});
 
 };
 
 export {parseCode};
 export {makeArray};
-export {tableInfo};
+export {tableInfo,globalsVars,functionCodeOnly};
 
 
 const statmentType = {
@@ -22,8 +25,34 @@ const statmentType = {
     'ForStatement': parseFor,
     'AssignmentExpression': parseAssignment,
     'UpdateExpression':parseUpdate,
-    'MemberExpression':parseMember};
+    'MemberExpression':parseMember,
+    'ArrayExpression': parseArray};
 
+
+function saveGlobalsVars(codeToParse) { //new
+    let lines=codeToParse.split('\n');
+    globalsVars=[];
+    let i=0;
+    let index=0;
+    while(i<lines.length && !lines[i].includes('(')) {
+        globalsVars[index]=lines[i];
+        index++;
+        i++;}
+    let j=lines.length-1;
+    while(j>=0 && !lines[j].includes('}')) {
+        globalsVars[index]=lines[j];
+        index++;
+        j--;}
+    return getFunctionOnly(lines, i, j);
+}
+function getFunctionOnly(lines, i, j){
+    let ans='';
+    for(let x=0;x<lines.length;x++){
+        if(x>=i&&x<=j)
+            ans+=lines[x]+'\n';
+    }
+    return ans;
+}
 
 function makeArray (ParsedCode) {
     tableInfo.clear;
@@ -87,7 +116,7 @@ function getVarValue(value) {
             return value.name;
         if(value.type=='UnaryExpression')
             return value.operator+' '+value.argument.value;
-        else(value.type=='MemberExpression')
+        else//(value.type=='MemberExpression')
             return parseMember(value);
 
 }
@@ -117,6 +146,8 @@ function moreChecks(oneSide) {
         temp= oneSide.operator+' '+oneSide.argument.value;
     if(oneSide.type=='MemberExpression')
         temp= parseMember(oneSide);
+    if(oneSide.type=='ArrayExpression')
+        temp= parseArray(oneSide);
     return temp;
 }
 function parseItem(item) {
@@ -182,7 +213,7 @@ function parseFor(insideBody) {
         Name:'',Condition:cond, Value:''});
     functionBlock(insideBody.body.body);
 }
-function parseAssignment(insideBody) {
+function parseAssignment(insideBody) { //NEED TO CHECK WHAT WE CHANGED
     let name=insideBody.left.name;
     let right=insideBody.right;
     right=getVarValue(right);
@@ -198,4 +229,20 @@ function parseUpdate(insideBody) {
 function parseMember(value) {
     return value.object.name+'['+getVarValue(value.property)+']';
 }
+function parseArray (value){
+    let result='[';
+    for(let i=0;i<value.elements.length;i++){
+        result+=getVarValue(value.elements[i])+',';
+    }
+    return result.substring(0,result.length-1)+']';
+}
+
+// function ArrayExpression(value)  //new
+// {
+//     let ans='[';
+//     for(let i=0;i<value.elements.length;i++){
+//         ans+=getValue(value.elements[i])+',';
+//     }
+//     return ans.substring(0,ans.length-1)+']';
+// }
 
