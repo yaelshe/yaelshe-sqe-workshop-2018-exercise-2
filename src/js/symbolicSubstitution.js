@@ -1,4 +1,4 @@
-import {parseInfo,globalsVars,functionCodeOnly} from './code-analyzer';
+import {tableInfo,globalsVars,functionCodeOnly} from './code-analyzer';
 import * as esprima from 'esprima';
 
 let argsVars=new Map();
@@ -52,17 +52,26 @@ const handleColorExpressionType = {
     'MemberExpression' : MemberExpressionColor
 };
 
-
+function clean(lines)
+{
+    for(var x=0  ;x<lines.length;x++){
+        if(lines[x].trim()===''||lines[x].trim()=='\n')
+            lines.splice(x,1);
+    }
+    return lines;
+}
 function functionAfterSubs(codeToParse,input) {
     initiate();
     saveFuncArgs(input);
     saveGlobals();
     let temp=functionCodeOnly.replace(new RegExp('}', 'g'),'}\n');
     oldLines=temp.split('\n');
+    oldLines=clean(oldLines);
     substitute(new Map());
 }
 
 function initiate() {
+    // initialization of the global variables and the program
     argsVars=new Map();
     newLines=[];
     oldLines=[];
@@ -86,35 +95,35 @@ function checkIfOnlyOneInArray(var1) {
 function saveFuncArgs(input) {
     let temp=0;
     input=input.replace(/\s/g, '');
+    let start=input.indexOf('(')+1;
+    let end=input.indexOf(')');
+    input=input.substring(start, end);
     let vars=input.split(',');
-    for(let i=1;i<parseInfo.length;i++) {
-        if(parseInfo[i].Line>1) return;
+    for(let i=1;i<tableInfo.length;i++) {
+        if(tableInfo[i].Line>1) return;
         if(vars[temp].charAt(0)=='['){//check for array
             checkIfOnlyOneInArray(vars[temp]);
             let arr=[];
             let index=0; //arr index
             index=findAllArr(temp,vars,arr,index);
-            // arr[index]=returnValue(vars[temp].slice(0, -1));
-            // temp++;
-            // index++;
             temp+=index;
-            argsVars.set(parseInfo[i].Name, arr);}
+            argsVars.set(tableInfo[i].Name, arr);}
         else{
-            argsVars.set(parseInfo[i].Name, returnValue(vars[temp]));
+            argsVars.set(tableInfo[i].Name, returnValue(vars[temp]));
             temp++;}}
 }
 
-function returnValue(var1) {
-    if(var1=='true' || var1=='false')
-        return JSON.parse(var1);
-    else if(isString(var1))
-        return var1.slice(1,-1);
+function returnValue(varReturn) {
+    if(varReturn=='true' || varReturn=='false')
+        return JSON.parse(varReturn);
+    else if(isString(varReturn))
+        return varReturn.slice(1,-1);
     else
-        return var1;
+        return varReturn;
 }
 
-function isString(var1){
-    return (var1.charAt(0)=='\'' && var1.charAt(var1.length-1)=='\'') || (var1.charAt(0)=='"' && var1.charAt(var1.length-1)=='"');
+function isString(varReturn){
+    return (varReturn.charAt(0)=='\'' && varReturn.charAt(varReturn.length-1)=='\'') || (varReturn.charAt(0)=='"' && varReturn.charAt(varReturn.length-1)=='"');
 }
 
 function handleCurrArr(temp, vars, arr, index) {
@@ -148,12 +157,9 @@ function findAllArr(temp,vars,arr,index){
     return index;
 }
 
-//go throw globals
 function saveGlobals() {
-    for(let i=0;i<globalsVars.length;i++){
-        //let temp=globalsVars[i].replace(/\s/g, '');  // i put in comment
-        // if(!temp.length)
-        //     continue;
+    for(let i=0;i<globalsVars.length;i++)
+    {
         let x = esprima.parseScript(globalsVars[i]+'');
         if(x.body.length>0 &&(x.body)[0].type=='VariableDeclaration'){
             let name=(x.body)[0].declarations[0].id;
@@ -248,7 +254,7 @@ function handleTableLine(localVars) {
     if(tableLinesCounter==1) //function header
         copyAsIs(localVars);
     else {
-        let currTableLines=getLinesFromParseInfo();
+        let currTableLines=getLinesFromTableInfo();
         handleLineFromTable(currTableLines,localVars);
 
     }
@@ -257,19 +263,17 @@ function handleTableLine(localVars) {
 }
 
 function handleLineFromTable(currTableLines,localVars) {
-    for (let i=0;i<currTableLines.length;i++){
-        //let func = typeToHandlerMapping[currTableLines[i].Type];
-        //let xxx=func.call(undefined, currTableLines[i],localVars);
+    for (let i=0;i<currTableLines.length;i++)
+    {
         let value= statmentType[currTableLines[i].Type](currTableLines[i],localVars);
         if(currTableLines[i].Type!='variable declaration' && currTableLines[i].Type!='assignment expression' && value!=undefined)
-        { // changed from xxx to value
+        {
             newLines[newLineCounter]=value;
             newLineCounter++;
         }
     }
 }
 
-//not adding to newLines - only save vars
 function varDeclaration(currItem,localVars) {
     let newVal = checkForLocals(currItem.Value,localVars);
     localVars.set((currItem.Name), newVal);
@@ -277,8 +281,6 @@ function varDeclaration(currItem,localVars) {
 
 function findExplicitVal(Value) {
     let x = esprima.parseScript(Value+'');
-    //let func = typeToHandlerMappingColor[(x.body)[0].expression.type];//what king of expression
-    //let ans= func.call(undefined, (x.body)[0].expression);
     let ans= handleColorExpressionType[(x.body)[0].expression.type]((x.body)[0].expression);
     return ans;
 }
@@ -315,14 +317,11 @@ function varAssignment(currItem,localVars) {
 function condition(currItem,localVars) {
     let newCondition = checkForLocals(currItem.Condition,localVars);
     let oldLine=oldLines[oldLinesCounter];
-    // let newLine=oldLine.replace(/ *\([^)]*\) */, '('+newCondition+')');
     let newLine=oldLine.substring(0,oldLine.indexOf('(')+1)+newCondition+oldLine.substring(oldLine.lastIndexOf(')'),oldLine.length);
     if(currItem.Type=='if statement' || currItem.Type=='else if statement'){
         findColor(newCondition);
     }
     return newLine;
-    // newLines[newLineCounter]=newLine;
-    // newLineCounter++;
 }
 
 function returnStatement(value,localVars)
@@ -335,8 +334,6 @@ function checkForLocals(Value,localVars) {
         return;
     else {
         let x = esprima.parseScript(Value+'');
-        //let func = typeToHandlerMapping[(x.body)[0].expression.type];//what king of expression
-        //return func.call(undefined, (x.body)[0].expression,localVars);
         return statmentType[(x.body)[0].expression.type]((x.body)[0].expression,localVars);
     }
 }
@@ -362,17 +359,12 @@ function BinaryExpression(expression,localVars)
 function calculate(left, right, operator) {
     let leftNum=Number(left);
     let rightNum=Number(right);
-    //let func = mathOperatorsMap[operator];
     try{
         return mathOperatorType[operator](leftNum,rightNum,left,right);
     }
     catch (exception) {
         return null;
     }
-    // if (func!=undefined)
-    //     return func.call(undefined,leftNum,rightNum,left,right);
-    // else
-    //     return null;
 }
 
 function plus(leftNum,rightNum,left,right) {
@@ -407,8 +399,6 @@ function divide(leftNum,rightNum,left,right) {
 }
 
 function binaryOneSide(left,localVars) {
-    //let func = typeToHandlerMapping[left.type];
-    //let temp= func.call(undefined,left,localVars);
     let temp= statmentType[left.type](left,localVars);
     if(left.type==('BinaryExpression'))
         left=''+temp;
@@ -417,7 +407,6 @@ function binaryOneSide(left,localVars) {
     return left;
 }
 
-//var
 function Identifier(value,localVars)
 {
     if(localVars.has(value.name))
@@ -436,16 +425,12 @@ function Literal(value,localVars)
 
 function UnaryExpression(value,localVars)
 {
-    //let func = typeToHandlerMapping[value.argument.type];
-    //let newVal= func.call(undefined,value.argument,localVars);
     let newVal= statmentType[value.property.type](value.property,localVars);
     return value.operator+' '+newVal;
 }
 
 function MemberExpression(value,localVars)
 {
-    //let func = typeToHandlerMapping[value.property.type];
-    //let indexVal= func.call(undefined,value.property,localVars);
     let indexVal= statmentType[value.property.type](value.property,localVars);
     if(indexVal=='length')
         return value.object.name+'.length';
@@ -461,8 +446,6 @@ function ArrayExpression(value,localVars)
 {
     let ans=[];
     for(let i=0;i<value.elements.length;i++){
-        //let func = typeToHandlerMapping[value.elements[i].type];
-        //ans[i]= func.call(undefined,value.elements[i],localVars);
         ans[i]= statmentType[value.elements[i].type](value.elements[i],localVars);
     }
     return ans;
@@ -481,15 +464,15 @@ function copyAsIs(localVars) {
 }
 
 //returns all lines from table with "Line" value of tableLinesCounter
-function getLinesFromParseInfo() {
+function getLinesFromTableInfo() {
     let ans=[];
-    for(let i=0;i<parseInfo.length;i++)
+    for(let i=0;i<tableInfo.length;i++)
     {
-        if(parseInfo[i].Line>tableLinesCounter)
+        if(tableInfo[i].Line>tableLinesCounter)
             return ans;
         else {
-            if(parseInfo[i].Line==tableLinesCounter)
-                ans.push(parseInfo[i]);}
+            if(tableInfo[i].Line==tableLinesCounter)
+                ans.push(tableInfo[i]);}
     }
     return ans;
 }
@@ -497,8 +480,6 @@ function getLinesFromParseInfo() {
 //get line and find&return color
 function findColor(condition) {
     let x = esprima.parseScript(condition+'');
-    //let func = typeToHandlerMappingColor[(x.body)[0].expression.type];//what king of expression
-    //let ans = func.call(undefined, (x.body)[0].expression);
     let ans = handleColorExpressionType[(x.body)[0].expression.type]((x.body)[0].expression);
     colors.set(newLineCounter,ans);
 }
@@ -555,16 +536,11 @@ function binaryOneSideC(left)
 }
 
 //var
-function IdentifierColor(value)
-{
-    // if(argsVars.has(value.name))
+function IdentifierColor(value) {
     return argsVars.get(value.name);
-    // else
-    //     return null;
 }
 
-function LiteralColor(value)
-{
+function LiteralColor(value) {
     return value.value;
 }
 

@@ -2,16 +2,20 @@
 import $ from 'jquery';
 import {makeArray} from './code-analyzer';
 import {parseCode} from './code-analyzer';
+import {functionAfterSubs,newLines,colors} from './symbolicSubstitution';
 $(document).ready(function () {
     $('#codeSubmissionButton').click(() => {
         let codeToParse = $('#codePlaceholder').val();
         let parsedCode = parseCode(codeToParse);
         $('#parsedCode').val(JSON.stringify(parsedCode, null, 2));
-// eslint-disable-next-line no-unused-vars
+        // eslint-disable-next-line no-unused-vars
+        //let lines= makeArray(parsedCode);
+        let args=$('#argsPlaceholder').val();
+        makeArray(parsedCode);
         let lines= makeArray(parsedCode);
+        functionAfterSubs(codeToParse,args);
+        showFuncAfterSubs();
         insertToTable(lines);
-
-
     });
 
 });
@@ -45,6 +49,24 @@ function createRow(i,lines,row){
     h.textContent=lines[i].Value;
     row.append(h);
     return row;
+}
+
+function showFuncAfterSubs() {
+
+    let htmlObject = document.getElementById('subsFunc');
+    let func='';
+    for(let i=0;i<newLines.length;i++){
+        if(colors.has(i))
+        {
+            if(colors.get(i))
+                func+='<span>'+'<mark style="background-color: green">'+newLines[i]+'</mark>'+'</span>'+'<br>';
+            else
+                func+='<span>'+'<mark style="background-color: red">'+newLines[i]+'</mark>'+'</span>'+'<br>';
+        }
+        else
+            func+='<span>'+newLines[i]+'\n'+'</span>'+'<br>';
+    }
+    htmlObject.innerHTML=func;
 }
 // function deleteRows(){
 //     var bodyTable=document.getElementById('bodyTable')
