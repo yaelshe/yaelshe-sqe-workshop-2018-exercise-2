@@ -1,18 +1,18 @@
 /* eslint-disable no-unused-vars,indent */
 import * as esprima from 'esprima';
 let tableInfo = [];
+let functionCode;
 let globalsVars=[];
-let functionCodeOnly;
 const parseCode = (codeToParse) => {
     tableInfo.clear;
-    functionCodeOnly=saveGlobalsVars(codeToParse);
-    return esprima.parseScript(functionCodeOnly,{loc:true});
+    functionCode=getCodeGlobalAndFunc(codeToParse);
+    return esprima.parseScript(functionCode,{loc:true});
 
 };
 
 export {parseCode};
 export {makeArray};
-export {tableInfo,globalsVars,functionCodeOnly};
+export {tableInfo,globalsVars,functionCode};
 
 
 const statmentType = {
@@ -29,52 +29,63 @@ const statmentType = {
     'ArrayExpression': parseArray};
 
 
-function saveGlobalsVars(codeToParse) {
+function getCodeGlobalAndFunc(codeToParse)
+{//save the global variables from the code and direct to
+    // different function that stores the function lines
     let lines=codeToParse.split('\n');
     lines=clean(lines);
-    globalsVars=[];
     let i=0;
-    let index=0;
-    while(i<lines.length && !lines[i].includes('(')) {
-        globalsVars[index]=lines[i];
-        index++;
-        i++;}
+    let count=0;
+    globalsVars=[];
+    while(i < lines.length && !(lines[i].includes('('))) {
+        globalsVars[count]=lines[i];
+        i++;
+        count++;}
     let j=lines.length-1;
-    while(j>=0 && !lines[j].includes('}')) {
-        globalsVars[index]=lines[j];
-        index++;
-        j--;}
-    return getFunctionOnly(lines, i, j);
+    while(j >= 0 && !lines[j].includes('}')) {
+        globalsVars[count]=lines[j];
+        j--;
+        count++;
+        }
+    return getFunction(lines, i, j);
 }
-function getFunctionOnly(lines, i, j){
-    let ans='';
-    for(let x=0;x<lines.length;x++){
-        if(x>=i&&x<=j)
-            ans+=lines[x]+'\n';
+function getFunction(lines, start, end){
+    //this function returns the lines of the function
+    let result='';
+    for(let row=0; row<lines.length; row++){
+        if(row >= start && row <= end)
+            result=result+lines[row]+'\n';
     }
-    return ans;
+    return result;
 }
 function clean(lines)
 {
-    for(let x=0;x<lines.length;x++){
-        if(lines[x].trim()===''||lines[x].trim()=='\n')
-            lines.splice(x,1);
+    //this function cleans the text from blank lines
+    //and returns the lines without the empty lines
+    for(let row=0;row<lines.length;row++){
+        if(lines[row].trim()===''||lines[row].trim()=='\n')
+            lines.splice(row,1);
     }
     return lines;
 }
 function makeArray (ParsedCode) {
     tableInfo.clear;
     tableInfo=[];
-    //ParsedCode.replaceAll('(?m)^\\s', '');
-    if (ParsedCode!=null&&ParsedCode.body.length > 0) {
-        if(isFunc(ParsedCode)) {
-            functionHeader(ParsedCode);
-            functionBlock((ParsedCode.body)[0].body.body);
+    try{
+        if (ParsedCode!=null&&ParsedCode.body.length > 0) {
+            if(isFunc(ParsedCode)) {
+                functionHeader(ParsedCode);
+                functionBlock((ParsedCode.body)[0].body.body);
+            }
+            else
+                functionBlock((ParsedCode.body));
         }
-        else
-            functionBlock((ParsedCode.body));
+        return tableInfo;
     }
-    return tableInfo;
+    catch(exception){
+        return;
+    }
+
 }
 function isFunc(ParsedCode) {
     if((ParsedCode.body)[0].type=='FunctionDeclaration')
@@ -245,13 +256,3 @@ function parseArray (value){
     }
     return result.substring(0,result.length-1)+']';
 }
-
-// function ArrayExpression(value)  //new
-// {
-//     let ans='[';
-//     for(let i=0;i<value.elements.length;i++){
-//         ans+=getValue(value.elements[i])+',';
-//     }
-//     return ans.substring(0,ans.length-1)+']';
-// }
-
