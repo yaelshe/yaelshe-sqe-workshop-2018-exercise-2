@@ -1,12 +1,13 @@
 /* eslint-disable no-unused-vars,indent */
 import * as esprima from 'esprima';
 let tableInfo = [];
-let functionCode;
+var functionCode;
 let globalsVars=[];
 const parseCode = (codeToParse) => {
     tableInfo.clear;
     functionCode=getCodeGlobalAndFunc(codeToParse);
-    return esprima.parseScript(functionCode,{loc:true});
+    let ans= esprima.parseScript(functionCode,{loc:true});
+    return ans;
 
 };
 
@@ -71,7 +72,7 @@ function clean(lines)
 function makeArray (ParsedCode) {
     tableInfo.clear;
     tableInfo=[];
-    try{
+   // try{
         if (ParsedCode!=null&&ParsedCode.body.length > 0) {
             if(isFunc(ParsedCode)) {
                 functionHeader(ParsedCode);
@@ -81,10 +82,10 @@ function makeArray (ParsedCode) {
                 functionBlock((ParsedCode.body));
         }
         return tableInfo;
-    }
-    catch(exception){
-        return;
-    }
+   // }
+    // catch(exception){
+    //     return;
+    // }
 
 }
 function isFunc(ParsedCode) {
@@ -131,14 +132,18 @@ function getVarValue(value) {
         if (value.type=='BinaryExpression')
             return getBinaryExpVal(value);
         if (value.type=='Literal')
-            return value.value;
+            return value.raw;
         if (value.type=='Identifier')
             return value.name;
         if(value.type=='UnaryExpression')
             return value.operator+' '+value.argument.value;
-        else//(value.type=='MemberExpression')
-            return parseMember(value);
+        else
+            return continueVarValue(value);
 
+}
+function continueVarValue(value){
+    if(value.type=='MemberExpression')
+        return parseMember(value);
 }
 function getBinaryExpVal(binaryValue)
 {
@@ -152,7 +157,7 @@ function simpleBinary(oneSide) {
     if (oneSide.type=='BinaryExpression')
         temp= '('+getBinaryExpVal(oneSide)+')';
     else if (oneSide.type=='Literal')
-        temp= oneSide.value;
+        temp= oneSide.raw;
     else if (oneSide.type=='Identifier')
         temp= oneSide.name;
     else
@@ -185,6 +190,7 @@ function parseReturn(insideBody) {
 //handling while statement
 function parseWhile(insideBody) {
     let cond=getVarValue(insideBody.test);
+
     tableInfo.push({Line:insideBody.loc.start.line, Type:'while statement',
         Name:'',Condition:cond, Value:''});
 
@@ -193,7 +199,8 @@ function parseWhile(insideBody) {
 
 }
 function parseIf(insideBody,type) {
-    let cond=getBinaryExpVal(insideBody.test);
+    let cond=getVarValue(insideBody.test);
+    //let cond=getBinaryExpVal(insideBody.test);
     if(type==null)
         type='if statement';
     tableInfo.push({Line:insideBody.loc.start.line, Type:type,

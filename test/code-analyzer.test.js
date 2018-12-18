@@ -1,170 +1,453 @@
 import assert from 'assert';
-import {parseCode} from '../src/js/code-analyzer';
-import {makeArray} from '../src/js/code-analyzer';
-//import {tableInfo, createParseInfo, functionCode} from '../src/js/code-analyzer';
+import {parseCode, tableInfo, makeArray} from '../src/js/code-analyzer';
+import {functionAfterSubs,newLines} from '../src/js/symbolicSubstitution';
 
-// describe('The javascript parser', () => {
-//     it('is parsing an empty function correctly', () => {
-//         assert.equal(
-//             JSON.stringify(parseCode('')),
-//             '{"type":"Program","body":[],"sourceType":"script"}'
-//         );
-//     });
-//
-//     it('is parsing a simple variable declaration correctly', () => {
-//         assert.equal(
-//             JSON.stringify(parseCode('let a = 1;')),
-//             '{"type":"Program","body":[{"type":"VariableDeclaration","declarations":[{"type":"VariableDeclarator","id":{"type":"Identifier","name":"a"},"init":{"type":"Literal","value":1,"raw":"1"}}],"kind":"let"}],"sourceType":"script"}'
-//         );
-//     });
-// });
 
-describe('The javascript parser', () => {
-    it('handels function declaration', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('function some(){};')))),
-            '[{"Line":1,"Type":"function declaration","Name":"some","Condition":"","Value":""}]'
-        );
-    });
-    it('handels if declaration', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('if (a==0){}')))),
-            '[{"Line":1,"Type":"if statement","Name":"","Condition":"a == 0","Value":""}]'
-        );
-    });
-    it('handels while declaration', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('while(a>=0){}')))),
-            '[{"Line":1,"Type":"while statement","Name":"","Condition":"a >= 0","Value":""}]'
-        );
-    });
-    it('handels for declaration', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('for(let a=1;a<8;a++){}')))),
-            '[{"Line":1,"Type":"for statement","Name":"","Condition":"a=1;a < 8;a++","Value":""}]'
-        );
-    });
-    it('handels Assignment Expression declaration', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('a=a+1;')))),
-            '[{"Line":1,"Type":"assignment expression","Name":"a","Condition":" ","Value":"a + 1"}]'
-        );
-    });
-    it('handels Update Expression declaration', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('a++;')))),
-            '[{"Line":1,"Type":"update expression","Name":"a","Condition":" ","Value":"a++"}]'
-        );
-    });
-    it('handels if else statement declaration', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('if (a==0)\n' +
-                'x++;\n' +
-                'else\n' +
-                'x--;')))),
-            '[{"Line":1,"Type":"if statement","Name":"","Condition":"a == 0","Value":""},{"Line":2,' +
-            '"Type":"update expression","Name":"x","Condition":" ","Value":"x++"},' +
-            '{"Line":4,"Type":"else statement","Name":"","Condition":" ","Value":""},' +
-            '{"Line":4,"Type":"update expression","Name":"x","Condition":" ","Value":"x--"}]'
-        );
-    });
-    it('handels function with parameters declaration', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('function some (x,c){}')))),
-            '[{"Line":1,"Type":"function declaration","Name":"some","Condition":"","Value":""},' +
-            '{"Line":1,"Type":"variable declaration","Name":"x","Condition":"","Value":""},' +
-            '{"Line":1,"Type":"variable declaration","Name":"c","Condition":"","Value":""}]'
-        );
+describe('save info and create table',()=>{
+
+    it('return inside function', ()=>{
+        let text=parseCode('function x() {\n' +
+            '    return 0;\n' +
+            '}');
+        makeArray(text);
+        let expRes=[{Line:'1', Type:'function declaration', Name:'x', Condition:'', Value:''},
+            {Line:'2', Type:'return statement', Name:'', Condition:'', Value:'0'}];
+        assert.deepEqual(expRes,tableInfo);
     });
 
-    it('handels if with member with parameters declaration', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('if (X < V[mid])\n' +
-                '        high = mid - 1;')))),
-            '[{"Line":1,"Type":"if statement","Name":"","Condition":"X < V[mid]","Value":""},' +
-            '{"Line":2,"Type":"assignment expression","Name":"high","Condition":" ","Value":"mid - 1"}]'
-        );
-    });
-    it('handels return statement', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('function some (){\n' +
-                'return true;}')))),
-            '[{"Line":1,"Type":"function declaration","Name":"some","Condition":"","Value":""},' +
-            '{"Line":2,"Type":"return statement","Name":"","Condition":"","Value":true}]'
-        );
-    });
-    it('handels unary expression', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('function some (){\n' +
-                'return -1;}')))),
-            '[{"Line":1,"Type":"function declaration","Name":"some","Condition":"","Value":""},' +
-            '{"Line":2,"Type":"return statement","Name":"","Condition":"","Value":"- 1"}]'
-        );
-    });
-    it('handels if else if expression', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('function some (){ \n' +
-                'if (a==1)\n' +
-                'return 1;\n' +
-                'else if(a==2)\n' +
-                'return 0;\n' +
-                'else\n' +
-                'return 2;}')))),
-            '[{"Line":1,"Type":"function declaration","Name":"some","Condition":"","Value":""}' +
-            ',{"Line":2,"Type":"if statement","Name":"","Condition":"a == 1","Value":""}' +
-            ',{"Line":3,"Type":"return statement","Name":"","Condition":"","Value":1},' +
-            '{"Line":4,"Type":"else if statement","Name":"","Condition":"a == 2","Value":""}' +
-            ',{"Line":5,"Type":"return statement","Name":"","Condition":"","Value":0},' +
-            '{"Line":7,"Type":"else statement","Name":"","Condition":" ","Value":""},' +
-            '{"Line":7,"Type":"return statement","Name":"","Condition":"","Value":2}]'
-        );
-    });
-    it('handels if with block statement', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('function some (){ \n' +
-                'if (a==1)\n' +
-                '{\n' +
-                'x++;\n' +
-                'x=x+2;\n' +
-                '}}')))),
-            '[{"Line":1,"Type":"function declaration","Name":"some","Condition":"","Value":""},' +
-            '{"Line":2,"Type":"if statement","Name":"","Condition":"a == 1","Value":""},' +
-            '{"Line":4,"Type":"update expression","Name":"x","Condition":" ","Value":"x++"},' +
-            '{"Line":5,"Type":"assignment expression","Name":"x","Condition":" ","Value":"x + 2"}]'
-        );
-    });
-    it('handels variable declaration', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('let a=0;')))),
-            '[{"Line":1,"Type":"variable declaration","Name":"a","Condition":"","Value":0}]'
-        );
-    });
-    it('handels binary complex declaration', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('let a=(x+7)/(x-10);')))),
-            '[{"Line":1,"Type":"variable declaration","Name":"a","Condition":"","Value":"(x + 7) / (x - 10)"}]'
-        );
-    });
-    it('handels else with block statement', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('if (a==0)\n' +
-                'x++;\n' +
-                'else{\n' +
-                'x=x+1;\n' +
-                'y=-1+-1;\n' +
-                '}')))),
-            '[{"Line":1,"Type":"if statement","Name":"","Condition":"a == 0","Value":""},' +
-            '{"Line":2,"Type":"update expression","Name":"x","Condition":" ","Value":"x++"},' +
-            '{"Line":3,"Type":"else statement","Name":"","Condition":" ","Value":""},' +
-            '{"Line":4,"Type":"assignment expression","Name":"x","Condition":" ","Value":"x + 1"},' +
-            '{"Line":5,"Type":"assignment expression","Name":"y","Condition":" ","Value":"- 1 + - 1"}]'
-        );
-    });
-    it('handels binary complex declaration', () => {
-        assert.equal(
-            JSON.stringify((makeArray(parseCode('let a=d[8];')))),
-            '[{"Line":1,"Type":"variable declaration","Name":"a","Condition":"","Value":"d[8]"}]'
-        );
+    it('function with var assign', ()=>{
+        let code='function x(a){\nlet b=a;\n}\nlet y=0;';
+        let vars='1';
+        let temp=parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp,vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i];
+        }
+        assert.deepEqual('function x(a){}',ans);
     });
 
+    it('another function with arg array-string compare',()=> {
+        let code = 'function x(a,b){\n' +
+            'if(a[0]=="a" && b==1){\n' +
+            'return "a";\n' +
+            '}\n' +
+            '}';
+        let vars = 'x([\'a\',false],0)';
+
+        let temp = parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp, vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i]+'\n';
+        }
+        assert.deepEqual('function x(a,b){\n' +
+            'if(a [ 0 ]  == "a" && b == 1){\n' +
+            'return "a";\n' +
+            '}\n' +
+            '}\n', ans);
+    });
+
+    it('function with global array', ()=>{
+        let code='let a=[true];\n' +
+            'function x(){\n' +
+            'let b=0;\n' +
+            'if(a[b]){\n' +
+            '\treturn "a";\n' +
+            '\n'+
+            '}\n' +
+            '}'+'\n   ';
+        let vars='';
+        let temp=parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp,vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i]+'\n';
+        }
+        assert.deepEqual(ans,'function x(){\n' +
+            'if(a [ 0 ] ){\n' +
+            '\treturn "a";\n' +
+            '}\n' +
+            '}\n');
+    });
+
+    it('arg array one item-string', ()=>{
+        let code= 'function x(a){\n' +
+            'if(a[0]==\'a\'){\n' +
+            'return true;\n' +
+            '}\n' +
+            '}';
+        let vars='["a"]';
+        let temp=parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp,vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i]+'\n';
+        }
+        assert.deepEqual(ans,'function x(a){\n' +
+            'if(a [ 0 ]  == \'a\'){\n' +
+            'return true;\n' +
+            '}\n' +
+            '}\n');
+    });
+    it('arg array three item-string and unary exp', ()=>{
+        let code= 'function x(a){\n' +
+            'if(a[0]==\'a\'){\n' +
+            'return -1;\n' +
+            '}\n' +
+            '}';
+        let vars='["a",1,true]';
+        let temp=parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp,vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i]+'\n';
+        }
+        assert.deepEqual(ans,'function x(a){\n' +
+            'if(a [ 0 ]  == \'a\'){\n' +
+            'return - 1;\n' +
+            '}\n' +
+            '}\n');
+    });
+
+    it('no globals but enter', ()=>{
+        let code= '\nfunction x(a){\n' +
+            '}';
+        let vars='"a"';
+        let temp=parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp,vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i]+'\n';
+        }
+        assert.deepEqual(ans,'function x(a){\n' +
+            '}\n');
+    });
+
+    it('var assignment with locals', ()=>{
+        let code= 'function x(a,b){\n' +
+            'let b=a;\n' +
+            'let c;\n' +
+            'c=b;\n' +
+            'b=c;\n' +
+            '}';
+        let vars='"a",1';
+        let temp=parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp,vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i]+'\n';
+        }
+        assert.deepEqual(ans,'function x(a,b){\n' +
+            'b=a;\n'+
+            '}\n');
+    });
+
+    it('using multiple', ()=>{
+        let code= 'function x(a,b){\n' +
+            'let x=a*b;\n' +
+            '}';
+        let vars='2,1';
+        let temp=parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp,vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i]+'\n';
+        }
+        assert.deepEqual(ans,'function x(a,b){\n' +
+            '}\n');
+    });
+
+    it('calculate plus', ()=>{
+        let code= 'function x(){\n' +
+            'let x=1+2;\n' +
+            '}';
+        let vars='';
+        let temp=parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp,vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i]+'\n';
+        }
+        assert.deepEqual(ans,'function x(){\n' +
+            '}\n');
+    });
+
+    it('zeros and not computable-all operators', ()=>{
+        let code= 'function x(a,b){\n' +
+            'let x=0+a;\n' +
+            'x=a+0;\n'+
+            'x=0+a;\n'+
+            'x=a+b;\n'+
+            'x=a-0;\n'+
+            'x=a-b;\n'+
+            'x=3-2;\n'+
+            'x=2*3;\n'+
+            'x=a*3;\n'+
+            'x=2*a;\n'+
+            'x=b*a;\n'+
+            'x=2/3;\n'+
+            'x=a/3;\n'+
+            'x=2/a;\n'+
+            'x=b/a;\n'+
+            '}';
+        let vars='2,9';
+        let temp=parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp,vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i]+'\n';
+        }
+        assert.deepEqual(ans,'function x(a,b){\n' +
+            '}\n');
+    });
+
+    it('array.length', ()=>{
+        let code= 'function x(a){\n' +
+            'if(a.length==3){\n' +
+            'return \'a\';\n' +
+            '}\n' +
+            '}';
+        let vars='["a",1,true]';
+        let temp=parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp,vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i]+'\n';
+        }
+        assert.deepEqual(ans,'function x(a){\n' +
+            'if(a.length == 3){\n' +
+            'return \'a\';\n' +
+            '}\n' +
+            '}\n');
+    });
+
+    it('arg index and local index', ()=>{
+        let code= 'function x(a,b){\n' +
+            'let c=0;\n' +
+            'a[c]=a[b];\n' +
+            'if(a[c]==3)\n' +
+            'return true;\n' +
+            '}';
+        let vars='[1,2,3],2';
+        let temp=parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp,vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i]+'\n';
+        }
+        assert.deepEqual(ans,'function x(a,b){\n' +
+            'a [ 0 ] =3;\n' +
+            'if(a [ 0 ]  == 3)\n' +
+            'return true;\n' +
+            '}\n');
+    });
+
+    it('local arr assignment', ()=>{
+        let code= 'function x(a,b){\n' +
+            'let c=[1,2,3];\n' +
+            'c[a]=c[b];\n' +
+            '}';
+        let vars='0,2';
+        let temp=parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp,vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i]+'\n';
+        }
+        assert.deepEqual(ans,'function x(a,b){\n' +
+            '}\n');
+    });
+
+    it('calculate result in if', ()=>{
+        let code= 'function x(a){\n' +
+            'if(a==(3-a))\n' +
+            'return true;\n' +
+            '}';
+        let vars='0';
+        let temp=parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp,vars);
+        let ans='';
+        for(let i=0;i<newLines.length;i++){
+            ans+=newLines[i]+'\n';
+        }
+        assert.deepEqual(ans,'function x(a){\n' +
+            'if(a == 3 - a)\n' +
+            'return true;\n'+
+            '}\n');
+    });
+
+    it('all operators in calc', ()=> {
+        let code = 'function x(a, b){\n' +
+            'if(a< b)\n' +
+            'return 1;\n' +
+            'else if(a>b)\n' +
+            'return 1;\n' +
+            'else if(a<=b)\n' +
+            'return 1;\n' +
+            'else if((a>=b) || (a!=b))\n' +
+            'return 1;\n' +
+            '}';
+        let vars = '0,1';
+        let temp = parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp, vars);
+        let ans = '';
+        for (let i = 0; i < newLines.length; i++) {
+            ans += newLines[i] + '\n';
+        }
+        assert.deepEqual(ans, 'function x(a, b){\n' +
+            'if(a < b)\n' +
+            'return 1;\n' +
+            'else if(a > b)\n' +
+            'return 1;\n' +
+            'else if(a <= b)\n' +
+            'return 1;\n' +
+            'else if(a >= b || a != b)\n' +
+            'return 1;\n' +
+            '}\n');
+    });
+
+    it('unary arg', ()=> {
+        let code = 'function x(a){\n' +
+            'if(-a<0)\n' +
+            'return 1;\n' +
+            '}';
+        let vars = '1';
+        let temp = parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp, vars);
+        let ans = '';
+        for (let i = 0; i < newLines.length; i++) {
+            ans += newLines[i] + '\n';
+        }
+        assert.deepEqual(ans, 'function x(a){\n' +
+            'if(- a < 0)\n' +
+            'return 1;\n' +
+            '}\n');
+    });
+
+    it('else', ()=> {
+        let code = 'function x(a){\n' +
+            'if(-a<0)\n' +
+            'return 1;\n' +
+            'else\n'+
+            'return 0;\n'+
+            '}';
+        let vars = '1';
+        let temp = parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp, vars);
+        let ans = '';
+        for (let i = 0; i < newLines.length; i++) {
+            ans += newLines[i] + '\n';
+        }
+        assert.deepEqual(ans, 'function x(a){\n' +
+            'if(- a < 0)\n' +
+            'return 1;\n' +
+            'else\n'+
+            'return 0;\n'+
+            '}\n');
+    });
+
+
+    it('else in block', ()=> {
+        let code = 'function x(a){\n' +
+            'if(-a<0)\n' +
+            'return 1;\n' +
+            'else{\n'+
+            'return 0;\n'+
+            '}\n'+
+            '}';
+        let vars = '1';
+        let temp = parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp, vars);
+        let ans = '';
+        for (let i = 0; i < newLines.length; i++) {
+            ans += newLines[i] + '\n';
+        }
+        assert.deepEqual(ans, 'function x(a){\n' +
+            'if(- a < 0)\n' +
+            'return 1;\n' +
+            'else{\n'+
+            'return 0;\n'+
+            '}\n'+
+            '}\n');
+    });
+
+    it('while', ()=> {
+        let code = 'function x(a){\n' +
+            'while(-a<0){\n' +
+            'a=a+1;\n' +
+            '}\n'+
+            '}';
+        let vars = '1';
+        let temp = parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp, vars);
+        let ans = '';
+        for (let i = 0; i < newLines.length; i++) {
+            ans += newLines[i] + '\n';
+        }
+        assert.deepEqual(ans, 'function x(a){\n' +
+            'while(- a < 0){\n' +
+            'a=a + 1;\n' +
+            '}\n'+
+            '}\n');
+    });
+
+    it('not', ()=> {
+        let code = 'function foo(x){\n' +
+            'if(!x)\n' +
+            'return x;\n' +
+            '}';
+        let vars = 'true';
+        let temp = parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp, vars);
+        let ans = '';
+        for (let i = 0; i < newLines.length; i++) {
+            ans += newLines[i] + '\n';
+        }
+        assert.deepEqual(ans, 'function foo(x){\n' +
+            'if(! x)\n' +
+            'return x;\n' +
+            '}\n');
+    });
+
+    it('update arg', ()=> {
+        let code = 'function foo(x){\n' +
+            'x++;\n' +
+            'if(x==0)\n' +
+            'return x;\n' +
+            '}';
+        let vars = '0';
+        let temp = parseCode(code);
+        makeArray(temp);
+        functionAfterSubs(temp, vars);
+        let ans = '';
+        for (let i = 0; i < newLines.length; i++) {
+            ans += newLines[i] + '\n';
+        }
+        assert.deepEqual(ans, 'function foo(x){\n' +
+            'x=x + 1;\n' +
+            'if(x == 0)\n' +
+            'return x;\n' +
+            '}\n');
+    });
 });

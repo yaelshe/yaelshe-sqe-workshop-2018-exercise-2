@@ -90,7 +90,7 @@ function getArgs(input) {
     let vars=input.split(',');
     for(let i=1;i<tableInfo.length;i++) {
         if(tableInfo[i].Line>1) return;
-        if(vars[temp].charAt(0)=='['){//check for array
+        if(vars[temp].charAt(0)=='['){
             singleElementArray(vars[temp]);
             let arr=[];
             let index=0; //arr index
@@ -167,7 +167,7 @@ function getGlobals() {
 }
 
 function substituteBlock(localVars,endOfScopeLine) {
-    while(oldLinesCounter<=endOfScopeLine) {
+    while(oldLinesCounter <= endOfScopeLine) {
         let temp=oldLines[oldLinesCounter];
         temp=temp.replace(/\s/g, '');
         if((temp=='}') || (temp=='{') || !(temp.length))
