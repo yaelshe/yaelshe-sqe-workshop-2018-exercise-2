@@ -26,9 +26,51 @@ const statmentType = {
     'ForStatement': parseFor,
     'AssignmentExpression': parseAssignment,
     'UpdateExpression':parseUpdate,
-    'MemberExpression':parseMember,
-    'ArrayExpression': parseArray};
+    'BinaryExpression': BinaryExpression,
+    'LogicalExpression':BinaryExpression,
+    'UnaryExpression':UnaryExpression,
+    'MemberExpression':MemberExpression,
+    'ArrayExpression':ArrayExpression,
+    'Identifier':Identifier,
+    'Literal': Literal
+};
 
+function BinaryExpression(value)
+{
+    return getBinaryExpVal(value);
+}
+
+function Identifier(value)
+{
+    return value.name;
+}
+
+function Literal(value)
+{
+    return value.raw;
+}
+
+function UnaryExpression(value)
+{
+    return value.operator+' '+getValue(value.argument);
+}
+
+function ArrayExpression(value)
+{
+    let ans='[';
+    for(let i=0;i<value.elements.length;i++){
+        ans+=getValue(value.elements[i])+',';
+    }
+    return ans.substring(0,ans.length-1)+']';
+}
+
+function MemberExpression(value)
+{
+    return value.object.name+' [ '+getValue(value.property)+' ] ';
+}
+function getValue(value) {
+    return statmentType[value.type](value);
+}
 
 function getCodeGlobalAndFunc(codeToParse)
 {//save the global variables from the code and direct to
@@ -123,28 +165,30 @@ function parseVar(insideBody) {
         let name=declaration.id.name;
         let value='null';
         if(declaration.init!=null)
-            value=getVarValue(declaration.init);
+            value=getValue(declaration.init);
         tableInfo.push({Line:insideBody.loc.start.line, Type:'variable declaration',
                         Name:name,Condition:'', Value:value});
     }
 }
-function getVarValue(value) {
-        if (value.type=='BinaryExpression')
-            return getBinaryExpVal(value);
-        if (value.type=='Literal')
-            return value.raw;
-        if (value.type=='Identifier')
-            return value.name;
-        if(value.type=='UnaryExpression')
-            return value.operator+' '+value.argument.value;
-        else
-            return continueVarValue(value);
+// function getVarValue(value) {
+//         if (value.type=='BinaryExpression')
+//             return getBinaryExpVal(value);
+//         if (value.type=='Literal')
+//             return value.raw;
+//         if (value.type=='Identifier')
+//             return value.name;
+//         if(value.type=='UnaryExpression')
+//             return value.operator+' '+value.argument.value;
+//         else
+//             return continueVarValue(value);
+//
+// }
+// function continueVarValue(value){
+//     if(value.type=='MemberExpression')
+//         return parseMember(value);
+// }
 
-}
-function continueVarValue(value){
-    if(value.type=='MemberExpression')
-        return parseMember(value);
-}
+
 function getBinaryExpVal(binaryValue)
 {
     let left=simpleBinary(binaryValue.left);
@@ -153,28 +197,36 @@ function getBinaryExpVal(binaryValue)
     return left+' '+operator+' '+right;
 }
 function simpleBinary(oneSide) {
-    let temp;
-    if (oneSide.type=='BinaryExpression')
-        temp= '('+getBinaryExpVal(oneSide)+')';
-    else if (oneSide.type=='Literal')
-        temp= oneSide.raw;
-    else if (oneSide.type=='Identifier')
-        temp= oneSide.name;
+    let temp= statmentType[oneSide.type](oneSide);
+    if(oneSide.type==('BinaryExpression'))
+        oneSide='( '+temp+' )';
     else
-        temp=moreChecks(oneSide);
-    return temp;
-    //maybe add member expression
+        oneSide=temp;
+    return oneSide;
 }
-function moreChecks(oneSide) {
-    let temp;
-    if(oneSide.type=='UnaryExpression')
-        temp= oneSide.operator+' '+oneSide.argument.value;
-    if(oneSide.type=='MemberExpression')
-        temp= parseMember(oneSide);
-    if(oneSide.type=='ArrayExpression')
-        temp= parseArray(oneSide);
-    return temp;
-}
+// function simpleBinary(oneSide) {
+//     let temp;
+//     if (oneSide.type=='BinaryExpression')
+//         temp= '('+getBinaryExpVal(oneSide)+')';
+//     else if (oneSide.type=='Literal')
+//         temp= oneSide.raw;
+//     else if (oneSide.type=='Identifier')
+//         temp= oneSide.name;
+//     else
+//         temp=moreChecks(oneSide);
+//     return temp;
+//     //maybe add member expression
+// }
+// function moreChecks(oneSide) {
+//     let temp;
+//     if(oneSide.type=='UnaryExpression')
+//         temp= oneSide.operator+' '+oneSide.argument.value;
+//     if(oneSide.type=='MemberExpression')
+//         temp= parseMember(oneSide);
+//     if(oneSide.type=='ArrayExpression')
+//         temp= parseArray(oneSide);
+//     return temp;
+// }
 function parseItem(item) {
     statmentType[item.type](item);
 }
@@ -183,14 +235,13 @@ function parseExpression(insideBody){
 }
 //handling return statement
 function parseReturn(insideBody) {
-    let returnValue=getVarValue(insideBody.argument);
+    let returnValue=getValue(insideBody.argument);
     tableInfo.push({Line:insideBody.loc.start.line, Type:'return statement',
         Name:'',Condition:'', Value:returnValue});
 }
 //handling while statement
 function parseWhile(insideBody) {
-    let cond=getVarValue(insideBody.test);
-
+    let cond=getBinaryExpVal(insideBody.test);
     tableInfo.push({Line:insideBody.loc.start.line, Type:'while statement',
         Name:'',Condition:cond, Value:''});
 
@@ -199,8 +250,7 @@ function parseWhile(insideBody) {
 
 }
 function parseIf(insideBody,type) {
-    let cond=getVarValue(insideBody.test);
-    //let cond=getBinaryExpVal(insideBody.test);
+    let cond=statmentType[insideBody.test.type](insideBody.test);
     if(type==null)
         type='if statement';
     tableInfo.push({Line:insideBody.loc.start.line, Type:type,
@@ -211,9 +261,12 @@ function parseIf(insideBody,type) {
         functionBlock(consequent.body);
     else
         parseItem(consequent);
+    countinueParseIf(insideBody,type);
+}
+
+function countinueParseIf(insideBody,type){
     if (insideBody.alternate!= null)
         parseElse(insideBody.alternate);
-
 }
 function parseElse(alternate) {
     if(alternate.type=='IfStatement')
@@ -231,7 +284,7 @@ function parseElse(alternate) {
     }
 }
 function parseFor(insideBody) {
-    let value=getVarValue(insideBody.init.declarations[0].init);
+    let value=getValue(insideBody.init.declarations[0].init);
     let cond=insideBody.init.declarations[0].id.name+'='+value;
     cond=cond+';'+getBinaryExpVal(insideBody.test)+';'
         +insideBody.update.argument.name
@@ -243,7 +296,7 @@ function parseFor(insideBody) {
 function parseAssignment(insideBody) { //NEED TO CHECK WHAT WE CHANGED
     let name=insideBody.left.name;
     let right=insideBody.right;
-    right=getVarValue(right);
+    right=getValue(right);
     tableInfo.push({Line:insideBody.loc.start.line, Type:'assignment expression',
         Name:name,Condition:' ', Value:right});
 }
@@ -254,12 +307,12 @@ function parseUpdate(insideBody) {
         Name:name,Condition:' ', Value:name+''+operator});
 }
 function parseMember(value) {
-    return value.object.name+'['+getVarValue(value.property)+']';
+    return value.object.name+'['+getValue(value.property)+']';
 }
-function parseArray (value){
-    let result='[';
-    for(let i=0;i<value.elements.length;i++){
-        result+=getVarValue(value.elements[i])+',';
-    }
-    return result.substring(0,result.length-1)+']';
-}
+// function parseArray (value){
+//     let result='[';
+//     for(let i=0;i<value.elements.length;i++){
+//         result+=getValue(value.elements[i])+',';
+//     }
+//     return result.substring(0,result.length-1)+']';
+// }
