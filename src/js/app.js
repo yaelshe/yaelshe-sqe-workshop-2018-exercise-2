@@ -2,7 +2,7 @@
 import $ from 'jquery';
 import {makeArray} from './code-analyzer';
 import {parseCode} from './code-analyzer';
-import {functionAfterSubs,newLines,colors} from './symbolicSubstitution';
+import {startSubstitution,newLines,colors} from './symbolicSubstitution';
 $(document).ready(function () {
     $('#codeSubmissionButton').click(() => {
         let codeToParse = $('#codePlaceholder').val();
@@ -14,7 +14,7 @@ $(document).ready(function () {
         makeArray(parsedCode);
         //let lines= makeArray(parsedCode);
         //insertToTable(lines);
-        functionAfterSubs(codeToParse,args);
+        startSubstitution(codeToParse,args);
         displayFuncWithColor();
 
     });

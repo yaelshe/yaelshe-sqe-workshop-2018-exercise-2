@@ -9,24 +9,24 @@ let newLineCounter=0;
 let oldLinesCounter=0;
 let tableLinesCounter=1;
 
-export {functionAfterSubs,colors};
+export {startSubstitution,colors};
 export {newLines};
 
 const stateOrExpType = {
-    'variable declaration': saveVarDeclar,
+    'variable declaration': saveVar,
     'assignment expression': varAssignment,
-    'While Statement': parseCondition,
+    'while statement': parseCondition,
     'if statement': parseCondition,
     'else if statement': parseCondition,
     'else statement': duplicate,
-    'return statement': returnStatement,
-    'BinaryExpression': BinaryExpression,
-    'LogicalExpression':BinaryExpression,
-    'UnaryExpression':UnaryExpression,
-    'MemberExpression':MemberExpression,
-    'ArrayExpression':ArrayExpression,
-    'Identifier':Identifier,
-    'Literal': Literal
+    'return statement': parseReturnStatement,
+    'BinaryExpression': parseBinaryExpression,
+    'LogicalExpression':parseBinaryExpression,
+    'UnaryExpression':parseUnaryExpression,
+    'MemberExpression':parseMemberExpression,
+    'ArrayExpression':parseArrayExpression,
+    'Identifier':parseIdentifier,
+    'Literal': parseLiteral
 };
 
 const mathOperatorType = {
@@ -44,15 +44,16 @@ const logicOperatorType = {
     '==' :equal,
     '!=' : notEqual,
     '||' : or,
-    '&&' : and
+    '&&' : and,
+    '===' :strongEqual
 };
 const colorExpressionType = {
     'BinaryExpression': BinaryExpressionColor,
     'LogicalExpression' : BinaryExpressionColor,
-    'Identifier' : IdentifierColor,
-    'Literal' : LiteralColor,
-    'UnaryExpression' : UnaryExpressionColor,
-    'MemberExpression' : MemberExpressionColor
+    'Identifier' : identifierColor,
+    'Literal' : literalColor,
+    'UnaryExpression' : unaryExpressionColor,
+    'MemberExpression' : memberExpressionColor
 };
 
 function clean(lines)
@@ -63,7 +64,7 @@ function clean(lines)
     }
     return lines;
 }
-function functionAfterSubs(codeToParse,input) {
+function startSubstitution(codeToParse, argsInput) {
     args=new Map();
     colors=new Map();
     newLines=[];
@@ -75,8 +76,8 @@ function functionAfterSubs(codeToParse,input) {
     oldLines=temp.split('\n');
     oldLines=clean(oldLines);
     getGlobals();
-    getArgs(input);
-    substitute(new Map()); //need to change name of function!!!!!!
+    getArgs(argsInput);
+    substitute(new Map());
 }
 
 //This function getArgs stores the arguments for the function
@@ -91,12 +92,11 @@ function getArgs(input) {
     for(let i=1;i<tableInfo.length;i++) {
         if(tableInfo[i].Line>1) return;
         if(vars[temp].charAt(0)=='['){
-            singleElementArray(vars[temp]);
-            let arr=[];
-            let index=0; //arr index
-            index=getAllArray(temp,vars,arr,index);
-            temp+=index;
-            args.set(tableInfo[i].Name, arr);}
+            let array=[];
+            let index=0;
+            index=getAllArray(temp,vars,array,index);
+            temp=temp+index;
+            args.set(tableInfo[i].Name, array);}
         else{
             args.set(tableInfo[i].Name, returnValue(vars[temp]));
             temp++;}}
@@ -122,84 +122,79 @@ function validString(varReturn){
         (varReturn.charAt(0)=='\'' && varReturn.charAt(varReturn.length-1)=='\'');
 }
 
-function getAllArray(temp,vars,arr,index)
-{
+function getAllArray(temp,vars,array,index) {
     if(singleElementArray(vars[temp]))
-        arr[index]=returnValue(vars[temp].slice(1,-1));
+        array[index]=returnValue(vars[temp].slice(1,-1));
     else {
-        index=parseCurrArr(temp,vars,arr,index);
-    }
+        index=parseCurrArr(temp,vars,array,index);}
     return index;
 }
 
-function parseCurrArr(temp, vars, arr, index) {
+function parseCurrArr(temp, vars, array, index) {
     while(temp < vars.length)
     {
-        if((vars[temp].charAt(0)=='['))
+        if((vars[temp].charAt(0) == '['))
         {
-            arr[index]=returnValue(vars[temp].substring(1));
+            array[index] = returnValue(vars[temp].substring(1));
             index++;
             temp++;}
-        else if(vars[temp].charAt(vars[temp].length-1)==']')
+        else if(vars[temp].charAt(vars[temp].length-1) == ']')
         {
-            arr[index]=returnValue(vars[temp].slice(0,-1));
+            array[index] = returnValue(vars[temp].slice(0,-1));
             index++;
             temp++;
             return index;}
         else {
-            arr[index]=returnValue(vars[temp]);
+            array[index] = returnValue(vars[temp]);
             index++;
             temp++;}
     }
 }
 
-function getGlobals() {
+function getGlobals()
+{
     for(let i=0 ;i < globalsVars.length; i++) {
         let glob = esprima.parseScript(globalsVars[i]+'');
         if(glob.body.length > 0 && (glob.body)[0].type == 'VariableDeclaration'){
-            let name=(glob.body)[0].declarations[0].id;
-            let value= stateOrExpType[(glob.body)[0].declarations[0].init.type]((glob.body)[0].declarations[0].init);
+            let name = (glob.body)[0].declarations[0].id;
+            let value = stateOrExpType[(glob.body)[0].declarations[0].init.type]((glob.body)[0].declarations[0].init);
             args.set(name.name,value);
         }
-        else
-            continue;
     }
 }
 
-function substituteBlock(localVars,endOfScopeLine) {
-    while(oldLinesCounter <= endOfScopeLine) {
-        let temp=oldLines[oldLinesCounter];
-        temp=temp.replace(/\s/g, '');
-        if((temp=='}') || (temp=='{') || !(temp.length))
-        {
+function parseBlock(localVars,endOfScope) {
+    while (oldLinesCounter <= endOfScope) {
+        let temp = oldLines[oldLinesCounter];
+        temp = temp.replace(/\s/g, '');
+        if (temp == '}' || (temp == '{') || !(temp.length)) {
+
             duplicate(localVars);
             oldLinesCounter++;
         }
         else {
             parseTableLine(localVars);
         }
-        checkIfSubstitute(endOfScopeLine,localVars);
+        checkForSub(endOfScope, localVars);
     }
 }
 
-function checkIfSubstitute(endOfScopeLine,localVars){
-    if(oldLinesCounter <= endOfScopeLine && oldLines[oldLinesCounter].includes('{'))
+function checkForSub(endOfScope,localVars){
+    if(oldLinesCounter <= endOfScope && oldLines[oldLinesCounter].includes('{'))
         substitute(localVars);
-    else
-        return;
 }
 
 function substitute(localVars) {
     while(oldLinesCounter<oldLines.length){
-        let newlocalVars=new Map(localVars);
-        let endOfScopeLine=getEndOfScopeLine();
-        substituteBlock(newlocalVars,endOfScopeLine);
+        let newLocalVars=new Map(localVars);
+        let endOfScope=getEndOfScope();
+        parseBlock(newLocalVars,endOfScope);
     }
 }
-//start from oldLinesCounter - find end of scope by { }
-function getEndOfScopeLine() {
-    let startCount=updateFirstCounter(0);
-    if(startCount==0)
+
+function getEndOfScope() {
+    let startCount = updateStartCount(0);
+    if(startCount == 0)
         return oldLinesCounter;
     for(let i = oldLinesCounter+1; i < oldLines.length; i++)
     {
@@ -212,7 +207,7 @@ function getEndOfScopeLine() {
     return oldLines.length-1;
 }
 
-function updateFirstCounter(startCount){
+function updateStartCount(startCount){
     if(oldLines[oldLinesCounter].includes('{'))
         startCount++;
     if(oldLines[oldLinesCounter].includes('}') && (oldLines[oldLinesCounter].indexOf('}'))>(oldLines[oldLinesCounter].indexOf('{')))
@@ -238,17 +233,15 @@ function getTabs() {
         {
             return oldLines[oldLinesCounter].substring(0,i);
         }
-        else
-            continue;
     }
 }
 
 function parseTableLine(localVars)
 {
-    if(tableLinesCounter==1)
+    if(tableLinesCounter == 1)
         duplicate(localVars);
     else {
-        let currentTableLines=getLinesFromTableInfo();
+        let currentTableLines = getLinesFromTableInfo();
         parseLine(currentTableLines,localVars);
     }
     oldLinesCounter++;
@@ -279,9 +272,9 @@ function getTypeCurrentLine(currentTableLines, i, localVars)
     }
 }
 
-function saveVarDeclar(currItem,localVars)
+function saveVar(currItem,localVars)
 {
-    let newValue = checkForLocals(currItem.Value,localVars);
+    let newValue = checkLocals(currItem.Value,localVars);
     localVars.set((currItem.Name), newValue);
 }
 
@@ -292,27 +285,27 @@ function getExplicitVal(localVars,Value)
 
 }
 
-function parseArrayAssignment(arr,localVars,newValue)
+function parseArrayAssignment(array,localVars,newValue)
 {
-    let arrName=arr.object.name;
-    let index = colorExpressionType[arr.property.type](localVars, arr.property);
-    index=checkForLocals(index, localVars);
+    let arrayName=array.object.name;
+    let index = colorExpressionType[array.property.type](localVars, array.property);
+    index=checkLocals(index, localVars);
     index=getExplicitVal(localVars,index);
     newValue=getExplicitVal(localVars,newValue);
-    if(args.has(arrName))
+    if(args.has(arrayName))
     {
-        args.get(arrName)[index]=newValue;
-        newLines[newLineCounter] = getTabs() + arrName+' [ '+index+' ] ' + '=' + newValue + ';';
+        args.get(arrayName)[index]=newValue;
+        newLines[newLineCounter] = getTabs() + arrayName+' [ '+index+' ] ' + '=' + newValue + ';';
         newLineCounter++;
     }
     else {
-        localVars.get(arrName)[index]= newValue;
+        localVars.get(arrayName)[index]= newValue;
     }
 }
 
 function varAssignment(currItem,localVars) {
-    let newValue = checkForLocals(currItem.Value, localVars);
     let left = esprima.parseScript(currItem.Name+'').body[0].expression;
+    let newValue = checkLocals(currItem.Value, localVars);
     if(left.type == 'MemberExpression'){
         parseArrayAssignment(left,localVars,newValue);
     }
@@ -329,7 +322,7 @@ function varAssignment(currItem,localVars) {
 
 
 function parseCondition(condition,localVars) {
-    let newCondition = checkForLocals(condition.Condition,localVars);
+    let newCondition = checkLocals(condition.Condition,localVars);
     let oldLine=oldLines[oldLinesCounter];
     let newLine=oldLine.substring(0,oldLine.indexOf('(')+1)+newCondition+oldLine.substring(oldLine.lastIndexOf(')'),oldLine.length);
     if(condition.Type=='if statement' || condition.Type=='else if statement'){
@@ -338,33 +331,33 @@ function parseCondition(condition,localVars) {
     return newLine;
 }
 
-function returnStatement(value,localVars)
+function parseReturnStatement(value,localVars)
 {
-    let result=getTabs()+'return ' + checkForLocals(value.Value,localVars)+';';
+    let result=getTabs()+'return ' + checkLocals(value.Value,localVars)+';';
     return result;
 }
 
-function checkForLocals(Value,localVars) {
-    if(Value == 'null')
+function checkLocals(value,localVars)
+{
+    if(value == 'null')
         return;
     else {
-        let x = esprima.parseScript(Value+'');
-        return stateOrExpType[(x.body)[0].expression.type]((x.body)[0].expression,localVars);
+        let newValue = esprima.parseScript(value+'');
+        return stateOrExpType[(newValue.body)[0].expression.type]((newValue.body)[0].expression,localVars);
     }
 }
 
-function BinaryExpression(expression,localVars)
+function parseBinaryExpression(expression,localVars)
 {
-    let left=expression.left;
-    let right=expression.right;
-    left=binaryOneSide(left,localVars);
-    right=binaryOneSide(right,localVars);
-    let result=solve(left,right,expression.operator);
+    let left=simpleBinaryExp(expression.left,localVars);
+    let right=simpleBinaryExp(expression.right,localVars);
+    let operator= expression.operator;
+    let result=solve(left,right,operator);
     if(result == null) {
         if (expression.operator == '*' || expression.operator == '/')
-            return '(' + left + ') ' + expression.operator + ' ' + right;
+            return '('+left+') '+expression.operator+' '+right;
         else
-            return left + ' ' + expression.operator + ' ' + right;
+            return left+' '+expression.operator+' '+right;
     }else
         return result;
 }
@@ -372,54 +365,54 @@ function BinaryExpression(expression,localVars)
 
 function solve(left, right, operator)
 {
-    let leftNum=Number(left);
-    let rightNum=Number(right);
+    let leftValue=Number(left);
+    let rightValue=Number(right);
     try{
-        return mathOperatorType[operator](leftNum,rightNum,left,right);
+        return mathOperatorType[operator](leftValue,rightValue,left,right);
     }
     catch (exception) {
         return null;
     }
 }
 
-function plus(leftNum, rightNum, left, right)
+function plus(leftValue, rightValue, left, right)
 {
-    if(leftNum == 0)
+    if(leftValue == 0)
         return right;
-    else if(rightNum == 0)
+    else if(rightValue == 0)
         return left;
-    else if((isNaN(leftNum) || isNaN(rightNum)))
+    else if((isNaN(leftValue) || isNaN(rightValue)))
         return null;
     else
-        return leftNum+rightNum;
+        return leftValue+rightValue;
 }
 
-function minus(leftNum, rightNum, left, right)
+function minus(leftValue, rightValue, left, right)
 {
-    if(rightNum == 0 && right != null)
+    if(rightValue == 0 && right != null)
         return left;
-    else if((isNaN(leftNum) || isNaN(rightNum)))
+    else if((isNaN(leftValue) || isNaN(rightValue)))
         return null;
     else
-        return leftNum-rightNum;
+        return leftValue-rightValue;
 }
 
-function multi(leftNum, rightNum, left, right)
+function multi(leftValue, rightValue, left, right)
 {
-    if(!(isNaN(leftNum)) && !(isNaN(rightNum)) &&(left != null && right != null))
-        return leftNum*rightNum;
+    if(!(isNaN(leftValue)) && !(isNaN(rightValue)) &&(left != null && right != null))
+        return leftValue*rightValue;
     else
         return null;
 }
-function divide(leftNum, rightNum, left, right)
+function divide(leftValue, rightNum, left, right)
 {
-    if(!(isNaN(leftNum) && isNaN(rightNum)) &&(left != null && right != null))
-        return leftNum/rightNum;
+    if(!(isNaN(leftValue) && isNaN(rightNum)) &&(left != null && right != null))
+        return leftValue/rightNum;
     else
         return null;
 }
 
-function binaryOneSide(left,localVars)
+function simpleBinaryExp(left,localVars)
 {
     let temp= stateOrExpType[left.type](left,localVars);
     if(left.type == ('BinaryExpression'))
@@ -429,31 +422,13 @@ function binaryOneSide(left,localVars)
     return left;
 }
 
-function Identifier(value,localVars)
-{
-    if(localVars.has(value.name))
-        return localVars.get(value.name);
-    else
-        return value.name;
-
-}
-
-function Literal(value,localVars)
-{
-    if(localVars==null)
-        return value.raw;
-    // else
-    //     return value.raw;
-    return value.raw;
-}
-
-function UnaryExpression(value,localVars)
+function parseUnaryExpression(value,localVars)
 {
     let newValue= stateOrExpType[value.argument.type](value.argument,localVars);
     return value.operator+' '+newValue;
 }
 
-function MemberExpression(value,localVars)
+function parseMemberExpression(value,localVars)
 {
     let indexValue= stateOrExpType[value.property.type](value.property,localVars);
     if(indexValue=='length')
@@ -466,7 +441,7 @@ function MemberExpression(value,localVars)
         return value.object.name+' [ '+indexValue+' ] ';
 }
 
-function ArrayExpression(value,localVars)
+function parseArrayExpression(value,localVars)
 {
     let result=[];
     for(let i = 0; i < value.elements.length; i++){
@@ -474,6 +449,21 @@ function ArrayExpression(value,localVars)
     }
     return result;
 }
+function parseIdentifier(value,localVars)
+{
+    if(localVars.has(value.name))
+        return localVars.get(value.name);
+    else
+        return value.name;
+}
+
+function parseLiteral(value,localVars)
+{
+    if(localVars==null)
+        return value.raw;
+    return value.raw;
+}
+
 
 function duplicate(localVars)
 {//this function duplicates lines that don't need to change
@@ -493,29 +483,40 @@ function getLinesFromTableInfo()
     for(let i=0;i<tableInfo.length;i++)
     {
         if(tableInfo[i].Line > tableLinesCounter)
+        {
+            if(result.length==0)
+                result =checkIfResultEmpty(result,i);
             return result;
+        }
         else {
             if(tableInfo[i].Line == tableLinesCounter)
-                result.push(tableInfo[i]);}
+                result.push(tableInfo[i]);
+        }
     }
     return result;
 }
+function checkIfResultEmpty(result,i){
+    for(let j=i;j<tableInfo.length;j++)
+    {
+        if(tableInfo[j].Line > tableLinesCounter)
+            result.push(tableInfo[j]);}
+    return result;
+}
 
-function BinaryExpressionColor(localVars,binExpression) {
-    let left = binExpression.left;
-    let right = binExpression.right;
-    left = binaryOneSideColor(localVars,left);
-    right = binaryOneSideColor(localVars,right);
+function BinaryExpressionColor(localVars,binExpression)
+{
+    let left = simpleBinaryExpColor(localVars,binExpression.left);
+    let right = simpleBinaryExpColor(localVars,binExpression.right);
     let result = solve(left, right, binExpression.operator);
     if (result == null) {
-        try {
-            return logicOperatorType[binExpression.operator](left, right);
-        }
-        catch (exception) {
-            return result;
-        }
+        return logicOperatorType[binExpression.operator](left, right);
     }
     return result;
+}
+function simpleBinaryExpColor(localVars,left)
+{
+    let temp= colorExpressionType[left.type](localVars,left);
+    return temp;
 }
 
 function smaller(left,right) {
@@ -533,6 +534,10 @@ function biggerEq(left,right) {
 function equal(left,right) {
     return left==right;
 }
+function strongEqual(left,right) {
+    return left===right;
+}
+
 function notEqual(left,right) {
     return left!=right;
 }
@@ -543,13 +548,7 @@ function and(left,right) {
     return left&&right;
 }
 
-function binaryOneSideColor(localVars,left)
-{
-    let temp= colorExpressionType[left.type](localVars,left);
-    return temp;
-}
-
-function IdentifierColor(localVars,value) {
+function identifierColor(localVars,value) {
     let name=value.name;
     if(localVars.has(name))
         return localVars.get(value.name);
@@ -557,11 +556,11 @@ function IdentifierColor(localVars,value) {
         return args.get(value.name);
 }
 
-function LiteralColor(localVars,value) {
+function literalColor(localVars,value) {
     return value.value;
 }
 
-function UnaryExpressionColor(localVars,value)
+function unaryExpressionColor(localVars,value)
 {
     let newValue= colorExpressionType[value.argument.type](localVars,value.argument);
     if(value.operator=='!')
@@ -570,7 +569,7 @@ function UnaryExpressionColor(localVars,value)
         return solve('0',newValue,value.operator);
 }
 
-function MemberExpressionColor(localVars,value)
+function memberExpressionColor(localVars,value)
 {
     let indexValue = value.property.name;
     if(indexValue == undefined || !indexValue == 'length')

@@ -1,453 +1,503 @@
 import assert from 'assert';
 import {parseCode, tableInfo, makeArray} from '../src/js/code-analyzer';
-import {functionAfterSubs,newLines} from '../src/js/symbolicSubstitution';
+import {startSubstitution,newLines} from '../src/js/symbolicSubstitution';
 
 
-describe('save info and create table',()=>{
+describe('Substitution Checks',()=>{
 
-    it('return inside function', ()=>{
-        let text=parseCode('function x() {\n' +
+    it('function with return statement', ()=>{
+        let text=parseCode('function foo() {\n' +
             '    return 0;\n' +
             '}');
         makeArray(text);
-        let expRes=[{Line:'1', Type:'function declaration', Name:'x', Condition:'', Value:''},
+        let expRes=[{Line:'1', Type:'function declaration', Name:'foo', Condition:'', Value:''},
             {Line:'2', Type:'return statement', Name:'', Condition:'', Value:'0'}];
         assert.deepEqual(expRes,tableInfo);
     });
 
-    it('function with var assign', ()=>{
-        let code='function x(a){\nlet b=a;\n}\nlet y=0;';
-        let vars='1';
+    it('Function with var assignment', ()=>{
+        let code='function foo(a){\nlet b=a;\n}\nlet y=0;';
+        let vars='foo(1)';
         let temp=parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp,vars);
-        let ans='';
+        startSubstitution(temp,vars);
+        let result='';
         for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i];
+            result= result+ newLines[i];
         }
-        assert.deepEqual('function x(a){}',ans);
+        assert.deepEqual('function foo(a){}',result);
     });
 
-    it('another function with arg array-string compare',()=> {
-        let code = 'function x(a,b){\n' +
-            'if(a[0]=="a" && b==1){\n' +
-            'return "a";\n' +
+    it('Array in arguments for function',()=> {
+        let code = 'function foo(array,num){\n' +
+            'if(array[1]=="asaf" && num==1){\n' +
+            'return true;\n' +
             '}\n' +
             '}';
-        let vars = 'x([\'a\',false],0)';
-
+        let vars = 'foo([87,\'asaf\',false,7],0)';
         let temp = parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp, vars);
-        let ans='';
+        startSubstitution(temp, vars);
+        let result='';
         for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i]+'\n';
+            result= result+ newLines[i]+'\n';
         }
-        assert.deepEqual('function x(a,b){\n' +
-            'if(a [ 0 ]  == "a" && b == 1){\n' +
-            'return "a";\n' +
+        assert.deepEqual('function foo(array,num){\n' +
+            'if(array [ 1 ]  == "asaf" && num == 1){\n' +
+            'return true;\n' +
             '}\n' +
-            '}\n', ans);
+            '}\n', result);
     });
 
-    it('function with global array', ()=>{
-        let code='let a=[true];\n' +
-            'function x(){\n' +
-            'let b=0;\n' +
-            'if(a[b]){\n' +
-            '\treturn "a";\n' +
+    it('Function with local array assignment', ()=>{
+        let code= 'function foo(x,y){\n' +
+            'let array=[8,4];\n' +
+            'array[x]=array[y];\n' +
+            '}';
+        let vars='foo(0,1)';
+        let temp=parseCode(code);
+        makeArray(temp);
+        startSubstitution(temp,vars);
+        let result='';
+        for(let i=0;i<newLines.length;i++){
+            result= result+ newLines[i]+'\n';
+        }
+        assert.deepEqual(result,'function foo(x,y){\n' +
+            '}\n');
+    });
+
+    it('Global array no arguments', ()=>{
+        let code='let array=[true];\n' +
+            'function foo(){\n' +
+            'let index=0;\n' +
+            'if(array[index]){\n' +
+            'return true;\n' +
             '\n'+
             '}\n' +
             '}'+'\n   ';
         let vars='';
         let temp=parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp,vars);
-        let ans='';
+        startSubstitution(temp,vars);
+        let result='';
         for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i]+'\n';
+            result= result+ newLines[i]+'\n';
         }
-        assert.deepEqual(ans,'function x(){\n' +
-            'if(a [ 0 ] ){\n' +
-            '\treturn "a";\n' +
+        assert.deepEqual(result,'function foo(){\n' +
+            'if(array [ 0 ] ){\n' +
+            'return true;\n' +
             '}\n' +
             '}\n');
     });
 
-    it('arg array one item-string', ()=>{
-        let code= 'function x(a){\n' +
-            'if(a[0]==\'a\'){\n' +
+    it('Array in arguments with single element', ()=>{
+        let code= 'function foo(array){\n' +
+            'if(array[0]===\'a\'){\n' +
             'return true;\n' +
             '}\n' +
             '}';
-        let vars='["a"]';
+        let vars='foo(["a"])';
         let temp=parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp,vars);
-        let ans='';
+        startSubstitution(temp,vars);
+        let result='';
         for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i]+'\n';
+            result= result+ newLines[i]+'\n';
         }
-        assert.deepEqual(ans,'function x(a){\n' +
-            'if(a [ 0 ]  == \'a\'){\n' +
+        assert.deepEqual(result,'function foo(array){\n' +
+            'if(array [ 0 ]  === \'a\'){\n' +
             'return true;\n' +
             '}\n' +
             '}\n');
     });
-    it('arg array three item-string and unary exp', ()=>{
-        let code= 'function x(a){\n' +
-            'if(a[0]==\'a\'){\n' +
+    it('Array in arguments and Unary expression', ()=>{
+        let code= 'function foo(array){\n' +
+            'if(array[0]==\'eden\'){\n' +
             'return -1;\n' +
             '}\n' +
             '}';
-        let vars='["a",1,true]';
+        let vars='foo(["eden",1])';
         let temp=parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp,vars);
-        let ans='';
+        startSubstitution(temp,vars);
+        let result='';
         for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i]+'\n';
+            result= result+ newLines[i]+'\n';
         }
-        assert.deepEqual(ans,'function x(a){\n' +
-            'if(a [ 0 ]  == \'a\'){\n' +
+        assert.deepEqual(result,'function foo(array){\n' +
+            'if(array [ 0 ]  == \'eden\'){\n' +
             'return - 1;\n' +
             '}\n' +
             '}\n');
     });
 
-    it('no globals but enter', ()=>{
-        let code= '\nfunction x(a){\n' +
-            '}';
-        let vars='"a"';
+    it('Empty function, with /n before', ()=>{
+        let code= '\nfunction foo(x){\n}';
+        let vars='foo(true)';
         let temp=parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp,vars);
-        let ans='';
+        startSubstitution(temp,vars);
+        let result='';
         for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i]+'\n';
+            result= result+ newLines[i]+'\n';
         }
-        assert.deepEqual(ans,'function x(a){\n' +
+        assert.deepEqual(result,'function foo(x){\n' +
             '}\n');
     });
 
-    it('var assignment with locals', ()=>{
-        let code= 'function x(a,b){\n' +
-            'let b=a;\n' +
-            'let c;\n' +
-            'c=b;\n' +
-            'b=c;\n' +
+    it('Assignment for local variables', ()=>{
+        let code= 'function foo(x,y){\n' +
+            'let z;\n' +
+            'let y=x;\n' +
+            'z=y;\n' +
+            'y=z;\n' +
             '}';
-        let vars='"a",1';
+        let vars='foo("a",1)';
         let temp=parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp,vars);
-        let ans='';
+        startSubstitution(temp,vars);
+        let result='';
         for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i]+'\n';
+            result= result+ newLines[i]+'\n';
         }
-        assert.deepEqual(ans,'function x(a,b){\n' +
-            'b=a;\n'+
+        assert.deepEqual(result,'function foo(x,y){\n' +
+            'y=x;\n'+
             '}\n');
     });
 
-    it('using multiple', ()=>{
-        let code= 'function x(a,b){\n' +
-            'let x=a*b;\n' +
+    it('Math operation use', ()=>{
+        let code= 'function foo(x,y){\n' +
+            'let foo=a+b;\n' +
             '}';
-        let vars='2,1';
+        let vars='foo(2,1)';
         let temp=parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp,vars);
-        let ans='';
+        startSubstitution(temp,vars);
+        let result='';
         for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i]+'\n';
+            result= result+ newLines[i]+'\n';
         }
-        assert.deepEqual(ans,'function x(a,b){\n' +
+        assert.deepEqual(result,'function foo(x,y){\n' +
             '}\n');
     });
 
-    it('calculate plus', ()=>{
-        let code= 'function x(){\n' +
-            'let x=1+2;\n' +
+    it('Solve minus', ()=>{
+        let code= 'function foo(a,b){\n' +
+            'let foo=a-b;\n' +
             '}';
-        let vars='';
+        let vars='foo(2,1)';
         let temp=parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp,vars);
-        let ans='';
+        startSubstitution(temp,vars);
+        let result='';
         for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i]+'\n';
+            result= result+ newLines[i]+'\n';
         }
-        assert.deepEqual(ans,'function x(){\n' +
+        assert.deepEqual(result,'function foo(a,b){\n' +
             '}\n');
     });
 
-    it('zeros and not computable-all operators', ()=>{
-        let code= 'function x(a,b){\n' +
-            'let x=0+a;\n' +
-            'x=a+0;\n'+
-            'x=0+a;\n'+
-            'x=a+b;\n'+
-            'x=a-0;\n'+
-            'x=a-b;\n'+
-            'x=3-2;\n'+
-            'x=2*3;\n'+
-            'x=a*3;\n'+
-            'x=2*a;\n'+
-            'x=b*a;\n'+
-            'x=2/3;\n'+
-            'x=a/3;\n'+
-            'x=2/a;\n'+
-            'x=b/a;\n'+
-            '}';
-        let vars='2,9';
-        let temp=parseCode(code);
-        makeArray(temp);
-        functionAfterSubs(temp,vars);
-        let ans='';
-        for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i]+'\n';
-        }
-        assert.deepEqual(ans,'function x(a,b){\n' +
-            '}\n');
-    });
-
-    it('array.length', ()=>{
-        let code= 'function x(a){\n' +
-            'if(a.length==3){\n' +
-            'return \'a\';\n' +
+    it('Check .length parsing', ()=>{
+        let code= 'function foo(array){\n' +
+            'if(array.length==0){\n' +
+            'return \'Length Is zero\';\n' +
             '}\n' +
             '}';
-        let vars='["a",1,true]';
+        let vars='foo(["a",1,true])';
         let temp=parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp,vars);
-        let ans='';
+        startSubstitution(temp,vars);
+        let result='';
         for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i]+'\n';
+            result= result+ newLines[i]+'\n';
         }
-        assert.deepEqual(ans,'function x(a){\n' +
-            'if(a.length == 3){\n' +
-            'return \'a\';\n' +
+        assert.deepEqual(result,'function foo(array){\n' +
+            'if(array.length == 0){\n' +
+            'return \'Length Is zero\';\n' +
             '}\n' +
             '}\n');
     });
 
-    it('arg index and local index', ()=>{
-        let code= 'function x(a,b){\n' +
-            'let c=0;\n' +
-            'a[c]=a[b];\n' +
-            'if(a[c]==3)\n' +
+    it('Assignment using argument index to local index', ()=>{
+        let code= 'function foo(array,num){\n' +
+            'let z=0;\n' +
+            'array[z]=array[num];\n' +
+            'if(array[z]==3)\n' +
             'return true;\n' +
             '}';
-        let vars='[1,2,3],2';
+        let vars='foo([1,2,3],2)';
         let temp=parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp,vars);
-        let ans='';
+        startSubstitution(temp,vars);
+        let result='';
         for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i]+'\n';
+            result= result+ newLines[i]+'\n';
         }
-        assert.deepEqual(ans,'function x(a,b){\n' +
-            'a [ 0 ] =3;\n' +
-            'if(a [ 0 ]  == 3)\n' +
+        assert.deepEqual(result,'function foo(array,num){\n' +
+            'array [ 0 ] =3;\n' +
+            'if(array [ 0 ]  == 3)\n' +
             'return true;\n' +
             '}\n');
     });
 
-    it('local arr assignment', ()=>{
-        let code= 'function x(a,b){\n' +
-            'let c=[1,2,3];\n' +
-            'c[a]=c[b];\n' +
+    it('Solve math inside an if statement', ()=>{
+        let code= 'function foo(num){\n' +
+            'if(num==(100+num))\n' +
+            'return false;\n' +
             '}';
-        let vars='0,2';
+        let vars='foo(5)';
         let temp=parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp,vars);
-        let ans='';
+        startSubstitution(temp,vars);
+        let result='';
         for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i]+'\n';
+            result= result+ newLines[i]+'\n';
         }
-        assert.deepEqual(ans,'function x(a,b){\n' +
+        assert.deepEqual(result,'function foo(num){\n' +
+            'if(num == 100 + num)\n' +
+            'return false;\n'+
+            '}\n');
+    });
+    it('Math operations and zero handling', ()=>{
+        let code= 'function foo(x,y){\n' +
+            'let num=0+x;\n' +
+            'num=x+0;\n'+
+            'num=0+x;\n'+
+            'num=x+y;\n'+
+            'num=x-0;\n'+
+            'num=x-y;\n'+
+            'num=3-2;\n'+
+            'num=2*3;\n'+
+            'num=a*3;\n'+
+            'num=2*x;\n'+
+            'num=y*x;\n'+
+            'num=1/3;\n'+
+            'num=x/10;\n'+
+            'num=5/x;\n'+
+            'num=b/x;\n'+
+            '}';
+        let vars='foo(76,5)';
+        let temp=parseCode(code);
+        makeArray(temp);
+        startSubstitution(temp,vars);
+        let result='';
+        for(let i=0;i<newLines.length;i++){
+            result=result+newLines[i]+'\n';
+        }
+        assert.deepEqual(result,'function foo(x,y){\n' +
+            '}\n');
+    });
+    it('Function with if condition with strong equality', ()=>{
+        let code= 'function foo(num){\n' +
+            'let array= [5,65,8];\n' +
+            'num=array[num];\n' +
+            'if (num===1){\n' +
+            'return num;\n' +
+            '}' +
+            '}';
+        let vars='foo(2)';
+        let temp=parseCode(code);
+        makeArray(temp);
+        startSubstitution(temp,vars);
+        let result='';
+        for(let i=0;i<newLines.length;i++){
+            result= result+ newLines[i]+'\n';
+        }
+        assert.deepEqual(result,'function foo(num){\n' +
+            'num=8;\n' +
+            'if (num === 1){\n' +
+            'return num;\n'+
+            '}\n' +
             '}\n');
     });
 
-    it('calculate result in if', ()=>{
-        let code= 'function x(a){\n' +
-            'if(a==(3-a))\n' +
+    it('Function with all logic operators ', ()=> {
+        let code = 'function foo(x, y, z){\n' +
+            'if(x>y)\n' +
+            'return false;\n' +
+            'else if(x< y)\n' +
             'return true;\n' +
+            'else if(x<=z)\n' +
+            'return true;\n' +
+            'else if((x>=z) || (y!=z))\n' +
+            'return false;\n' +
             '}';
-        let vars='0';
-        let temp=parseCode(code);
-        makeArray(temp);
-        functionAfterSubs(temp,vars);
-        let ans='';
-        for(let i=0;i<newLines.length;i++){
-            ans+=newLines[i]+'\n';
-        }
-        assert.deepEqual(ans,'function x(a){\n' +
-            'if(a == 3 - a)\n' +
-            'return true;\n'+
-            '}\n');
-    });
-
-    it('all operators in calc', ()=> {
-        let code = 'function x(a, b){\n' +
-            'if(a< b)\n' +
-            'return 1;\n' +
-            'else if(a>b)\n' +
-            'return 1;\n' +
-            'else if(a<=b)\n' +
-            'return 1;\n' +
-            'else if((a>=b) || (a!=b))\n' +
-            'return 1;\n' +
-            '}';
-        let vars = '0,1';
+        let vars = 'foo(3,6,2)';
         let temp = parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp, vars);
-        let ans = '';
+        startSubstitution(temp, vars);
+        let result = '';
         for (let i = 0; i < newLines.length; i++) {
-            ans += newLines[i] + '\n';
+            result = result+  newLines[i] + '\n';
         }
-        assert.deepEqual(ans, 'function x(a, b){\n' +
-            'if(a < b)\n' +
-            'return 1;\n' +
-            'else if(a > b)\n' +
-            'return 1;\n' +
-            'else if(a <= b)\n' +
-            'return 1;\n' +
-            'else if(a >= b || a != b)\n' +
-            'return 1;\n' +
+        assert.deepEqual(result, 'function foo(x, y, z){\n' +
+            'if(x > y)\n' +
+            'return false;\n' +
+            'else if(x < y)\n' +
+            'return true;\n' +
+            'else if(x <= z)\n' +
+            'return true;\n' +
+            'else if(x >= z || y != z)\n' +
+            'return false;\n' +
             '}\n');
     });
 
+    it('Function with if statement with not=> !', ()=> {
+        let code = 'function foo(value){\n' +
+            'if(!value)\n' +
+            'return value;\n' +
+            '}';
+        let vars = 'foo(false)';
+        let temp = parseCode(code);
+        makeArray(temp);
+        startSubstitution(temp, vars);
+        let result = '';
+        for (let i = 0; i < newLines.length; i++) {
+            result = result+  newLines[i] + '\n';
+        }
+        assert.deepEqual(result, 'function foo(value){\n' +
+            'if(! value)\n' +
+            'return value;\n' +
+            '}\n');
+    });
+
+    it('Function with else statement', ()=> {
+        let code = 'function foo(num){\n' +
+            'if(num<0)\n' +
+            'return true;\n' +
+            'else\n'+
+            'return false;\n'+
+            '}';
+        let vars = 'foo(-7)';
+        let temp = parseCode(code);
+        makeArray(temp);
+        startSubstitution(temp, vars);
+        let result = '';
+        for (let i = 0; i < newLines.length; i++) {
+            result = result+  newLines[i] + '\n';
+        }
+        assert.deepEqual(result, 'function foo(num){\n' +
+            'if(num < 0)\n' +
+            'return true;\n' +
+            'else\n'+
+            'return false;\n'+
+            '}\n');
+    });
+
+
+    it('Function with else statement with brackets', ()=> {
+        let code = 'function foo(num){\n' +
+            'if(num<0)\n' +
+            'return true;\n' +
+            'else{\n'+
+            'return false;\n'+
+            '}\n'+
+            '}';
+        let vars = 'foo(-7)';
+        let temp = parseCode(code);
+        makeArray(temp);
+        startSubstitution(temp, vars);
+        let result = '';
+        for (let i = 0; i < newLines.length; i++) {
+            result = result+  newLines[i] + '\n';
+        }
+        assert.deepEqual(result, 'function foo(num){\n' +
+            'if(num < 0)\n' +
+            'return true;\n' +
+            'else{\n'+
+            'return false;\n'+
+            '}\n'+
+            '}\n');
+    });
+
+    it('Function with while loop ', ()=> {
+        let code = 'function foo(num){\n' +
+            'while(-num<0){\n' +
+            'num=num-2;\n' +
+            '}\n'+
+            '}';
+        let vars = 'foo(10)';
+        let temp = parseCode(code);
+        makeArray(temp);
+        startSubstitution(temp, vars);
+        let result = '';
+        for (let i = 0; i < newLines.length; i++) {
+            result = result+  newLines[i] + '\n';
+        }
+        assert.deepEqual(result, 'function foo(num){\n' +
+            'while(- num < 0){\n' +
+            'num=num - 2;\n' +
+            '}\n'+
+            '}\n');
+    });
+
+    it('Function with update expression for argument with ++', ()=> {
+        let code = 'function foo(num,num2){\n' +
+            'num++;\n' +
+            'if(num==0)\n' +
+            'return num2;\n' +
+            '}';
+        let vars = 'foo(0,10)';
+        let temp = parseCode(code);
+        makeArray(temp);
+        startSubstitution(temp, vars);
+        let result = '';
+        for (let i = 0; i < newLines.length; i++) {
+            result = result+ newLines[i] + '\n';
+        }
+        assert.deepEqual(result, 'function foo(num,num2){\n' +
+            'num=num + 1;\n' +
+            'if(num == 0)\n' +
+            'return num2;\n' +
+            '}\n');
+    });
+    it('Function with 2 while loops and arrays ', ()=> {
+        let code = 'function foo (items) {\n' +
+            'let i=1;\n' +
+            'while (i>0) {\n' +
+            'let value = items[i];\n' +
+            'let j=0;\n' +
+            'while (j>0){\n' +
+            'items[i+1] = items[j];\n' +
+            'items[j ] = value;\n' +
+            '}\n' +
+            '}\n' +
+            'return items;\n' +
+            '}\n';
+        let vars = 'foo([0,10,2,56])';
+        let temp = parseCode(code);
+        makeArray(temp);
+        startSubstitution(temp, vars);
+        let result = '';
+        for (let i = 0; i < newLines.length; i++) {
+            result = result+ newLines[i] + '\n';
+        }
+        assert.deepEqual(result, 'function foo (items) {\n' +
+            'while (1 > 0) {\n' +
+            'while (0 > 0){\n' +
+            'items [ 2 ] =0;\n' +
+            'items [ 0 ] =10;\n' +
+            '}\n' +
+            '}\n' +
+            'return items;\n' +
+            '}\n');
+    });
     it('unary arg', ()=> {
-        let code = 'function x(a){\n' +
-            'if(-a<0)\n' +
+        let code = 'function foo(num){\n' +
+            'if(-num<0)\n' +
             'return 1;\n' +
             '}';
-        let vars = '1';
+        let vars = 'foo(1)';
         let temp = parseCode(code);
         makeArray(temp);
-        functionAfterSubs(temp, vars);
+        startSubstitution(temp, vars);
         let ans = '';
         for (let i = 0; i < newLines.length; i++) {
             ans += newLines[i] + '\n';
         }
-        assert.deepEqual(ans, 'function x(a){\n' +
-            'if(- a < 0)\n' +
+        assert.deepEqual(ans, 'function foo(num){\n' +
+            'if(- num < 0)\n' +
             'return 1;\n' +
-            '}\n');
-    });
-
-    it('else', ()=> {
-        let code = 'function x(a){\n' +
-            'if(-a<0)\n' +
-            'return 1;\n' +
-            'else\n'+
-            'return 0;\n'+
-            '}';
-        let vars = '1';
-        let temp = parseCode(code);
-        makeArray(temp);
-        functionAfterSubs(temp, vars);
-        let ans = '';
-        for (let i = 0; i < newLines.length; i++) {
-            ans += newLines[i] + '\n';
-        }
-        assert.deepEqual(ans, 'function x(a){\n' +
-            'if(- a < 0)\n' +
-            'return 1;\n' +
-            'else\n'+
-            'return 0;\n'+
-            '}\n');
-    });
-
-
-    it('else in block', ()=> {
-        let code = 'function x(a){\n' +
-            'if(-a<0)\n' +
-            'return 1;\n' +
-            'else{\n'+
-            'return 0;\n'+
-            '}\n'+
-            '}';
-        let vars = '1';
-        let temp = parseCode(code);
-        makeArray(temp);
-        functionAfterSubs(temp, vars);
-        let ans = '';
-        for (let i = 0; i < newLines.length; i++) {
-            ans += newLines[i] + '\n';
-        }
-        assert.deepEqual(ans, 'function x(a){\n' +
-            'if(- a < 0)\n' +
-            'return 1;\n' +
-            'else{\n'+
-            'return 0;\n'+
-            '}\n'+
-            '}\n');
-    });
-
-    it('while', ()=> {
-        let code = 'function x(a){\n' +
-            'while(-a<0){\n' +
-            'a=a+1;\n' +
-            '}\n'+
-            '}';
-        let vars = '1';
-        let temp = parseCode(code);
-        makeArray(temp);
-        functionAfterSubs(temp, vars);
-        let ans = '';
-        for (let i = 0; i < newLines.length; i++) {
-            ans += newLines[i] + '\n';
-        }
-        assert.deepEqual(ans, 'function x(a){\n' +
-            'while(- a < 0){\n' +
-            'a=a + 1;\n' +
-            '}\n'+
-            '}\n');
-    });
-
-    // it('not', ()=> {
-    //     let code = 'function foo(x){\n' +
-    //         'if(!x)\n' +
-    //         'return x;\n' +
-    //         '}';
-    //     let vars = 'true';
-    //     let temp = parseCode(code);
-    //     makeArray(temp);
-    //     functionAfterSubs(temp, vars);
-    //     let ans = '';
-    //     for (let i = 0; i < newLines.length; i++) {
-    //         ans += newLines[i] + '\n';
-    //     }
-    //     assert.deepEqual(ans, 'function foo(x){\n' +
-    //         'if(! x)\n' +
-    //         'return x;\n' +
-    //         '}\n');
-    // });
-
-    it('update arg', ()=> {
-        let code = 'function foo(x){\n' +
-            'x++;\n' +
-            'if(x==0)\n' +
-            'return x;\n' +
-            '}';
-        let vars = '0';
-        let temp = parseCode(code);
-        makeArray(temp);
-        functionAfterSubs(temp, vars);
-        let ans = '';
-        for (let i = 0; i < newLines.length; i++) {
-            ans += newLines[i] + '\n';
-        }
-        assert.deepEqual(ans, 'function foo(x){\n' +
-            'x=x + 1;\n' +
-            'if(x == 0)\n' +
-            'return x;\n' +
             '}\n');
     });
 });
