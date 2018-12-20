@@ -482,7 +482,7 @@ describe('Substitution Checks',()=>{
             'return items;\n' +
             '}\n');
     });
-    it('unary arg', ()=> {
+    it('Function with unary', ()=> {
         let code = 'function foo(num){\n' +
             'if(-num<0)\n' +
             'return 1;\n' +
@@ -491,11 +491,11 @@ describe('Substitution Checks',()=>{
         let temp = parseCode(code);
         makeArray(temp);
         startSubstitution(temp, vars);
-        let ans = '';
+        let result = '';
         for (let i = 0; i < newLines.length; i++) {
-            ans += newLines[i] + '\n';
+            result=result+ newLines[i] + '\n';
         }
-        assert.deepEqual(ans, 'function foo(num){\n' +
+        assert.deepEqual(result, 'function foo(num){\n' +
             'if(- num < 0)\n' +
             'return 1;\n' +
             '}\n');
