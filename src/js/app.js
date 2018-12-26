@@ -1,3 +1,4 @@
+
 /* eslint-disable indent */
 import $ from 'jquery';
 import {makeArray} from './code-analyzer';
